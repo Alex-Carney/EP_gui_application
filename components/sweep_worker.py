@@ -27,6 +27,9 @@ class SweepWorker(QThread):
 
         self.is_running = True  # Flag to control the thread
 
+        # Experiment ID for this sweep
+        self.experiment_id = str(uuid.uuid4())
+
     def run(self):
         try:
             voltages = self.generate_voltage_list(self.voltage_start, self.voltage_end, self.voltage_step)
@@ -87,8 +90,6 @@ class SweepWorker(QThread):
     def save_data_to_db(self, freqs, power_dbm, voltage, readout_type, omega_C, omega_Y, kappa_C, kappa_Y, Delta, K):
         from database import EPMeasurementModel
 
-        experiment_id = str(uuid.uuid4())
-
         # Get settings from attenuators and phase shifters
         loop_phase = self.get_phase_shifter_value("loop_phase")
 
@@ -112,7 +113,7 @@ class SweepWorker(QThread):
 
         measurements = [
             EPMeasurementModel(
-                experiment_id=experiment_id,
+                experiment_id=self.experiment_id,
                 frequency_hz=freq,
                 power_dBm=power,
                 set_voltage=voltage,
