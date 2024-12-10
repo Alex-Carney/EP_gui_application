@@ -6,6 +6,7 @@ import os
 
 Base = declarative_base()
 
+
 class EPMeasurementModel(Base):
     __tablename__ = 'expr'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -41,11 +42,12 @@ class EPMeasurementModel(Base):
     # Independent variable
     set_voltage = Column(Float)
 
+
 def create_database(db_name='experiment_data.db', folder_path='./databases'):
     # Ensure the database file name ends with .db
     if not db_name.endswith('.db'):
         db_name += '.db'
-    
+
     # Ensure the folder path exists
     os.makedirs(folder_path, exist_ok=True)
 
@@ -55,9 +57,9 @@ def create_database(db_name='experiment_data.db', folder_path='./databases'):
     # Create the database engine with the full path
     engine = create_engine(f'sqlite:///{db_path}')
     Base.metadata.create_all(engine)
-    
+
     # Enable WAL mode
     with engine.connect() as connection:
         connection.execute(text("PRAGMA journal_mode=WAL;"))
-    
+
     return sessionmaker(bind=engine)

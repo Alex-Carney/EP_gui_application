@@ -10,6 +10,7 @@ from config import config
 # Import components
 from components import (
     VoltageControlPanel,
+    CurrentControlPanel,
     SwitchConfigurationPanel,
     PhaseShifterPanelContainer,
     AttenuatorPanelContainer,
@@ -47,9 +48,11 @@ class MainApplication(QMainWindow):
         self.voltage_control_panel = VoltageControlPanel()
         left_layout.addWidget(self.voltage_control_panel)
 
-        # Add Switch Configuration Panel
-        self.switch_config_panel = SwitchConfigurationPanel()
-        left_layout.addWidget(self.switch_config_panel)
+        # Add Current Control Panel
+        self.current_control_panel = CurrentControlPanel()
+        left_layout.addWidget(self.current_control_panel)
+
+
 
         # Add Phase Shifter Panels
         self.phase_shifter_panel = PhaseShifterPanelContainer()
@@ -58,6 +61,14 @@ class MainApplication(QMainWindow):
         # Add Attenuator Panels
         self.attenuator_panel = AttenuatorPanelContainer()
         left_layout.addWidget(self.attenuator_panel)
+
+        # Get the cavity att and yig att from the attenuator panel container
+        cavity_feedback_atten = self.attenuator_panel.get_device("cavity_att")
+        yig_feedback_atten = self.attenuator_panel.get_device("yig_att")
+
+        # Add Switch Configuration Panel
+        self.switch_config_panel = SwitchConfigurationPanel(cavity_feedback_atten=cavity_feedback_atten, yig_feedback_atten=yig_feedback_atten, attenuator_container=self.attenuator_panel)
+        left_layout.addWidget(self.switch_config_panel)
 
         # Add the ConfigPanel
         self.config_panel = ConfigPanel(
@@ -79,7 +90,8 @@ class MainApplication(QMainWindow):
             vna_control_panel=self.vna_control_panel,
             switch_config_panel=self.switch_config_panel,
             phase_shifter_container=self.phase_shifter_panel,
-            attenuator_container=self.attenuator_panel
+            attenuator_container=self.attenuator_panel,
+            current_control_panel=self.current_control_panel
         )
         right_layout.addWidget(self.sweep_control_panel)
 

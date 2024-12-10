@@ -11,3 +11,4 @@ from .vna_control_panel import VNAControlPanel
 from .config_panel import ConfigPanel
 from .sweep_control_panel import SweepControlPanel
 from .sweep_worker import SweepWorker
+from .current_control_panel import CurrentControlPanel

@@ -95,6 +95,7 @@ class AttenuatorPanel(QWidget):
 
     def set_device_value(self, new_value):
         # Update the device value
+        print(f"IN ATTENUATOR PANEL - Setting {self.name} to {new_value} dB")
         self.device.attenuation(new_value)
         self.value = round(new_value, 2)
         self.update_value_display()

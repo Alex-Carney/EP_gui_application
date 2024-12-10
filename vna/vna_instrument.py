@@ -16,9 +16,10 @@ except ImportError:
     print("Could not import SignalCore SC5511A driver")
     raise
 
+
 class VectorNetworkAnalyzer:
     def __init__(self, center_freq: float, span_freq: float, att_into_qm_box: float, lo_serial_number: str,
-                 base_dir: str, bandwidth: float = 90e6, 
+                 base_dir: str, bandwidth: float = 90e6,
                  lo_power: int = 21, n_avg: int = 100, f_min: float = 2e6,
                  del_f: float = 1e6):
         self.center_freq = center_freq

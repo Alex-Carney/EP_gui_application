@@ -2,3 +2,7 @@ databases/
 __pycache__/
 slack_notifier.py
 plots/
+*.csv
+traces_plots/
+.idea/
+*.sqlite

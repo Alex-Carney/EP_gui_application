@@ -1,6 +1,6 @@
 # components/config_panel.py
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QVBoxLayout, QLabel
 import os
 import json
 
@@ -14,6 +14,10 @@ class ConfigPanel(QWidget):
 
     def initUI(self):
         layout = QVBoxLayout()
+
+        # Add a description 
+        description = "DO NOT SAVE OR LOAD UNLESS IN NORMAL OPERATION!!"
+        layout.addWidget(QLabel(description))
 
         # Save buttons
         save_layout = QHBoxLayout()

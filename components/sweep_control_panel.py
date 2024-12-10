@@ -5,13 +5,14 @@ from PyQt5.QtCore import pyqtSignal
 from components.sweep_worker import SweepWorker
 
 class SweepControlPanel(QWidget):
-    def __init__(self, parent=None, voltage_control_panel=None, vna_control_panel=None, switch_config_panel=None, phase_shifter_container=None, attenuator_container=None):
+    def __init__(self, parent=None, voltage_control_panel=None, vna_control_panel=None, switch_config_panel=None, phase_shifter_container=None, attenuator_container=None, current_control_panel=None):
         super().__init__(parent)
         self.voltage_control_panel = voltage_control_panel
         self.vna_control_panel = vna_control_panel
         self.switch_config_panel = switch_config_panel
         self.phase_shifter_container = phase_shifter_container
         self.attenuator_container = attenuator_container
+        self.current_control_panel = current_control_panel
 
         self.is_sweeping = False
 
@@ -45,7 +46,7 @@ class SweepControlPanel(QWidget):
         layout.addWidget(self.db_name_input)
 
         # Start Sweep button
-        self.start_sweep_button = QPushButton("Start Sweep")
+        self.start_sweep_button = QPushButton("Start Sweep - Ensure Phase set when K = Delta = 0")
         self.start_sweep_button.clicked.connect(self.start_sweep)
         layout.addWidget(self.start_sweep_button)
 
@@ -84,7 +85,8 @@ class SweepControlPanel(QWidget):
             vna_control_panel=self.vna_control_panel,
             switch_config_panel=self.switch_config_panel,
             phase_shifter_container=self.phase_shifter_container,
-            attenuator_container=self.attenuator_container
+            attenuator_container=self.attenuator_container,
+            current_control_panel=self.current_control_panel
         )
 
         # Connect signals

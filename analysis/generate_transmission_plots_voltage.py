@@ -27,7 +27,22 @@ def __get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_m
     FROM {TABLE_NAME}
     WHERE experiment_id = '{experiment_id}' AND readout_type = '{readout_type}'
     """
-    settings = pd.read_sql_query(settings_query, engine).iloc[0]
+    settings_df = pd.read_sql_query(settings_query, engine)
+
+    # Check if data is empty and handle accordingly
+    if settings_df.empty:
+        print(f"No settings found for experiment {experiment_id}, readout type: {readout_type}. Using default values.")
+        settings = {
+            "set_loop_phase_deg": "N/A",
+            "set_loop_att": "N/A",
+            "set_loopback_att": "N/A",
+            "set_yig_fb_phase_deg": "N/A",
+            "set_yig_fb_att": "N/A",
+            "set_cavity_fb_phase_deg": "N/A",
+            "set_cavity_fb_att": "N/A"
+        }
+    else:
+        settings = settings_df.iloc[0]
 
     # Fetch measurement data
     data_query = f"""
@@ -47,13 +62,13 @@ def __get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_m
         power_grid = pivot_table.values
         return power_grid, voltages, frequencies, settings
     else:
-        print(f"No data found for experiment {experiment_id}, readout type: {readout_type}")
+        print(f"No data found for experiment {experiment_id}, readout type: {readout_type}, with voltage range: {voltage_min} to {voltage_max}")
         return None, None, None, None
 
 
 def __default_peak_finding_function(frequencies, powers):
     # Detect peaks using SciPy
-    peaks_indices, _ = find_peaks(powers, height=-30, prominence=0.2, distance=10)
+    peaks_indices, _ = find_peaks(powers, height=-30, prominence=0.1, distance=50)
     peak_freqs = frequencies[peaks_indices]
     peak_powers = powers[peaks_indices]
     return peak_freqs, peak_powers
@@ -107,7 +122,7 @@ def __generate_transmission_plot_with_peaks(power_grid, voltages, frequencies, p
 
 
 def plot_all_experiments_with_peaks(db_path, freq_min=1e9, freq_max=99e9, voltage_min=-2.0, voltage_max=2.0,
-                                    vmin_transmission=-40, vmax_transmission=8):
+                                    vmin_transmission=None, vmax_transmission=None):
     engine = __get_engine(db_path)
     experiment_ids = pd.read_sql_query(f"SELECT DISTINCT experiment_id FROM {TABLE_NAME}", engine)
     readout_types = ['normal', 'cavity', 'yig']
@@ -136,7 +151,12 @@ def plot_all_experiments_with_peaks(db_path, freq_min=1e9, freq_max=99e9, voltag
 
 
 if __name__ == "__main__":
-    db_path = './databases/experiment_data.db'
+    db_path = '../databases/12_9_overnight.db'
     plot_all_experiments_with_peaks(db_path=db_path,
-                                    voltage_min=0.0,
-                                    voltage_max=1.0)
+                                    voltage_min=-3,
+                                    voltage_max=0,
+                                    freq_min=6.0185e9,
+                                    freq_max=6.0205e9,)
+
+
+# GOOD RESULTS: another_attempt_again
