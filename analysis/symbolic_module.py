@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import numpy as np
 import sympy as sp
+import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
 
 
 @dataclass
@@ -155,32 +157,81 @@ def get_cavity_dynamics_eigenvalues_numeric(symbols_dict: ModelSymbolics, params
     return eigenvalues
 
 
-# Example usage
+def calculate_theoretical_peak_splittings(symbols_dict, params, K_values):
+    """
+    Calculate the peak splitting for a range of \( K \) values.
+
+    Parameters:
+        symbols_dict: Symbolic equations and variables.
+        params: Model parameters.
+        K_values: Array of \( K \) values to sweep.
+
+    Returns:
+        kappa_scaled: \( K / J \).
+        splittings_scaled: Peak splitting scaled by \( J \).
+    """
+    splittings = []
+
+    for K in K_values:
+        # Update gamma_vec with the current \( K \) value
+        params.gamma_vec[1] = params.gamma_vec[0] - K
+
+        # Get steady-state response for transmission
+        ss_response = get_steady_state_response_transmission(symbols_dict, params)
+
+        # Define LO frequencies around the cavity resonance
+        lo_freqs = np.linspace(params.cavity_freq - 0.5, params.cavity_freq + 0.5, 1000)
+
+        # Compute photon numbers
+        photon_numbers = compute_photon_numbers_transmission(ss_response, lo_freqs)
+
+        # Find peaks in the photon number spectrum
+        peaks, _ = find_peaks(photon_numbers)
+
+        # If two peaks are found, calculate their splitting
+        if len(peaks) >= 2:
+            peak_splitting = abs(lo_freqs[peaks[1]] - lo_freqs[peaks[0]])
+            splittings.append(peak_splitting)
+        else:
+            splittings.append(0)  # No splitting detected
+
+    # Scale K and splittings by J
+    K_scaled = K_values / params.J_val
+    splittings_scaled = np.array(splittings) / params.J_val
+
+    return K_scaled, splittings_scaled
+
 if __name__ == "__main__":
     # Setup symbolic equations
     symbols_dict = setup_symbolic_equations()
 
     # Define parameters
+    J_value = 0.1  # GHz
     params = ModelParams(
-        J_val=0.06,
-        g_val=0.025 - 0.04,
+        J_val=J_value,
+        g_val=0,  # Difference between gamma values
         cavity_freq=6.0,  # GHz
         w_y=6.0,  # GHz
-        gamma_vec=np.array([0.025, 0.04]),
+        gamma_vec=np.array([0.025, 0.04]),  # Initial gamma values
         drive_vector=np.array([1, 0]),
         readout_vector=np.array([1, 0]),
-        phi_val=np.pi - 0.1,
+        phi_val=0,  # Phase difference
     )
 
-    # Transmission case
-    ss_response = get_steady_state_response_transmission(symbols_dict, params)
+    # Define \( K \) range scaled by J
+    K_range = np.linspace(-4 * J_value, 0, 100)  # GHz
 
-    # Define LO frequencies
-    lo_freqs = np.linspace(5.6, 6.4, 1000)  # LO frequencies in GHz
+    # Calculate theoretical peak splittings
+    K_scaled, splittings_scaled = calculate_theoretical_peak_splittings(symbols_dict, params, K_range)
 
-    # Compute photon numbers for transmission case
-    photon_numbers = compute_photon_numbers_transmission(ss_response, lo_freqs)
-
-    # Compute eigenvalues
-    eigenvalues = get_cavity_dynamics_eigenvalues_numeric(symbols_dict, params)
-    print("Eigenvalues:", eigenvalues)
+    # Plot the results
+    plt.figure(figsize=(8, 6))
+    plt.plot(K_scaled, splittings_scaled, label="Theoretical Splitting")
+    plt.xlabel("K / J")
+    plt.ylabel("Peak Splitting / J")
+    plt.title("Theoretical Peak Splitting vs K")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("theoretical_peak_splitting_vs_K.png", dpi=400)
+    plt.show()

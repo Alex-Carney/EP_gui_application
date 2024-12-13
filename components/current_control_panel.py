@@ -67,7 +67,7 @@ class CurrentControlPanel(QWidget):
 
         # Step size dropdown
         self.step_size_combo = QComboBox()
-        self.step_size_combo.addItems(["0.001e-2", "0.01e-2", "0.1e-2"])
+        self.step_size_combo.addItems(["1.0e-7", "1.0e-6", "1.0e-5", "1.0e-4", "1.0e-3"])
         self.step_size_combo.currentIndexChanged.connect(self.step_size_changed)
         controls_layout.addWidget(QLabel("Step Size:"))
         controls_layout.addWidget(self.step_size_combo)
@@ -111,11 +111,15 @@ class CurrentControlPanel(QWidget):
 
     def step_size_changed(self, index):
         step_size_str = self.step_size_combo.currentText()
-        if step_size_str == "0.001e-2":
+        if step_size_str == "1.0e-7":
+            self.step_size = 1e-7
+        elif step_size_str == "1.0e-6":
+            self.step_size = 1e-6
+        elif step_size_str == "1.0e-5":
             self.step_size = 1e-5
-        elif step_size_str == "0.01e-2":
+        elif step_size_str == "1.0e-4":
             self.step_size = 1e-4
-        elif step_size_str == "0.1e-2":
+        elif step_size_str == "1.0e-3":
             self.step_size = 1e-3
         else:
             self.step_size = 1e-5  # Default

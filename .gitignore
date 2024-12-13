@@ -6,3 +6,5 @@ plots/
 traces_plots/
 .idea/
 *.sqlite
+csv/
+*.png

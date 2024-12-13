@@ -151,12 +151,20 @@ def plot_all_experiments_with_peaks(db_path, freq_min=1e9, freq_max=99e9, voltag
 
 
 if __name__ == "__main__":
-    db_path = '../databases/12_9_overnight.db'
+    db_path = '../databases/12_12_ovn_one.db'
     plot_all_experiments_with_peaks(db_path=db_path,
                                     voltage_min=-3,
+
+
+
                                     voltage_max=0,
                                     freq_min=6.0185e9,
                                     freq_max=6.0205e9,)
 
 
 # GOOD RESULTS: another_attempt_again
+
+
+    # db_path = '../databases/12_9_overnight.db'
+    # engine = get_engine(db_path)
+    # experiment_id = '7ed9f8f6-fd12-4fcd-b14f-57b08dae27fc'

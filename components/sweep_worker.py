@@ -8,14 +8,19 @@ import traceback
 import config
 import threading  # Import threading for locks
 
-delta_tolerance = .00005 * .9  # Tolerance for detuning in GHz
-max_adjustments = 5  # Limit the number of adjustments per voltage step
-current_adjustment_step = 0.001e-2  # Current adjustment step in Amperes
+# Adjust tolerance a bit because we now re-measure the cavity each iteration
+delta_tolerance = 1e-6 * 1.0  # Tolerance for detuning in GHz
+max_adjustments = 20  # Limit the number of adjustments per voltage step
+ENABLE_HASH_MAP = True  # Enable YIG feedback logic
 
-ENABLE_HASH_MAP = False  # Set to True to enable the adjustment logic
+current_adjustment_step = 1.0e-7  # Current adjustment step (if needed), or used in proportional control
+K_p = 2.5  # Proportional gain for YIG feedback
+
+# Threshold to detect spurious peaks if they jump too far from the last known peak
+# If the new measurement is more than spurious_threshold away from the last known, we discard it
+spurious_threshold = 0.01  # GHz (example value)
 
 class SweepWorker(QThread):
-
     """
 
     DO NOT ASK CHAT GPT TO UPDATE THIS CODE WITHOUT GIVING IT THIS UPDATED VERSION
@@ -28,9 +33,9 @@ class SweepWorker(QThread):
     failed = pyqtSignal(str)
 
     def __init__(
-        self, voltage_start, voltage_end, voltage_step, session_factory,
-        voltage_control_panel, current_control_panel, vna_control_panel,
-        switch_config_panel, phase_shifter_container, attenuator_container
+            self, voltage_start, voltage_end, voltage_step, session_factory,
+            voltage_control_panel, current_control_panel, vna_control_panel,
+            switch_config_panel, phase_shifter_container, attenuator_container
     ):
         super().__init__()
         self.voltage_start = voltage_start
@@ -45,7 +50,6 @@ class SweepWorker(QThread):
         self.attenuator_container = attenuator_container
 
         self.is_running = True  # Flag to control the thread
-
         self.experiment_id = str(uuid.uuid4())
 
         # Initialize current source device and initial current value
@@ -53,12 +57,16 @@ class SweepWorker(QThread):
         self.current_value = self.current_control_panel.current_value  # Initial current value
         self.current_lock = threading.Lock()  # Lock for thread safety
 
+        # Keep track of last known peak frequencies to avoid spurious results
+        self.last_omega_c = None
+        self.last_omega_y = None
+
     def run(self):
         try:
             voltages = self.generate_voltage_list(self.voltage_start, self.voltage_end, self.voltage_step)
             total_steps = len(voltages) * 3  # Multiply by 3 for the three readout types
 
-            current_step = 0
+            current_step_count = 0
 
             for voltage in voltages:
                 if not self.is_running:
@@ -73,88 +81,122 @@ class SweepWorker(QThread):
                     if not self.is_running:
                         break
 
-                    # Set configuration
+                    # 1) Set configuration
                     self.switch_config_panel.set_configuration(readout_type)
+                    time.sleep(0.1)  # Wait for hardware settle
 
-                    # Wait for configuration to settle
-                    time.sleep(0.1)  # Adjust as needed
-
-                    # Get data from VNA
+                    # 2) Acquire data from VNA
                     freqs, power_dbm = self.vna_control_panel.get_current_trace()
 
-                    # Get additional parameters
-                    omega_C = self.vna_control_panel.omega_C
-                    omega_Y = self.vna_control_panel.omega_Y
+                    # 3) Grab the newly measured peaks
+                    new_omega_c = self.validate_peak(self.vna_control_panel.omega_C, self.last_omega_c, "cavity")
+                    new_omega_y = self.validate_peak(self.vna_control_panel.omega_Y, self.last_omega_y, "yig")
+
+                    # 4) Update last_omega_c and last_omega_y if valid
+                    if new_omega_c is not None:
+                        self.last_omega_c = new_omega_c
+                    if new_omega_y is not None:
+                        self.last_omega_y = new_omega_y
+
+                    omega_C = self.last_omega_c
+                    omega_Y = self.last_omega_y
+
                     kappa_C = self.vna_control_panel.kappa_C
                     kappa_Y = self.vna_control_panel.kappa_Y
-                    Delta = omega_C - omega_Y if omega_C and omega_Y else None
-                    K = kappa_C - kappa_Y if kappa_C and kappa_Y else None
+                    Delta = None
+                    K = None
+                    if omega_C is not None and omega_Y is not None:
+                        Delta = omega_C - omega_Y
+                    if kappa_C is not None and kappa_Y is not None:
+                        K = kappa_C - kappa_Y
 
+                    print(f"Readout = {readout_type}")
                     print("Omega_C: ", omega_C)
                     print("Omega_Y: ", omega_Y)
                     print("Delta: ", Delta)
 
-                    # If readout_type is "YIG Readout Only", adjust current if needed
+                    # 5) If YIG readout, apply feedback
                     if readout_type == "YIG Readout Only" and Delta is not None and ENABLE_HASH_MAP:
-                        # Initialize variables for adjustment
                         best_current = self.current_value
                         best_Delta = Delta
-                        adjustment_attempts = 0
+                        attempt = 0
+                        print("Starting YIG feedback with proportional control...")
 
-                        print("Adjusting current...")
+                        while attempt < max_adjustments:
+                            print(f"Attempt {attempt + 1}: Delta={Delta}, best_Delta={best_Delta}")
 
-                        print(f"Are we going in the loop? {abs(Delta)} > {delta_tolerance} and {adjustment_attempts} < {max_adjustments}")
-
-                        while abs(Delta) > delta_tolerance and adjustment_attempts < max_adjustments:
-                            print(f'Inside adjustment loop. Delta: {Delta}, tolerance: {delta_tolerance}, adjustment attempts: {adjustment_attempts}')
-
-                            if Delta < -delta_tolerance:
-                                # Detuning is negative; decrease current
-                                print('Subtracting current_adjustment_step')
-                                new_current = self.current_value - current_adjustment_step
-                            elif Delta > delta_tolerance:
-                                # Detuning is positive; increase current
-                                print('Adding current_adjustment_step')
-                                new_current = self.current_value + current_adjustment_step
-
-                            # Set new current
+                            # Adjust current using proportional control
+                            new_current = self.current_value + K_p * Delta
                             print(f"Setting current to {new_current} A")
                             with self.current_lock:
+                                print('inside of the actual setting code')
                                 self.current_source.current.set(new_current)
-                                self.current_value = new_current  # Update current value
+                                self.current_value = new_current
 
-                            # Wait for current source to settle
-                            time.sleep(0.1)
+                            time.sleep(0.2)  # wait for current to settle
 
-                            # Measure again in "YIG Readout Only" configuration
+                            # Re-measure YIG readout
                             self.switch_config_panel.set_configuration("YIG Readout Only")
                             time.sleep(0.1)
                             freqs, power_dbm = self.vna_control_panel.get_current_trace()
 
-                            # Recalculate parameters
-                            omega_C = self.vna_control_panel.omega_C
-                            omega_Y = self.vna_control_panel.omega_Y
-                            Delta = omega_C - omega_Y if omega_C and omega_Y else None
+                            # Validate new YIG peak
+                            new_omega_y = self.validate_peak(self.vna_control_panel.omega_Y, self.last_omega_y, "yig")
+                            if new_omega_y is not None:
+                                self.last_omega_y = new_omega_y
+                            omega_Y = self.last_omega_y
 
-                            # Check if this is the best Delta so far
-                            if abs(Delta) < abs(best_Delta):
+                            # Re-measure cavity readout as well so that Delta is consistent
+                            self.switch_config_panel.set_configuration("Cavity Readout Only")
+                            time.sleep(0.1)
+                            freqs_cav, power_dbm_cav = self.vna_control_panel.get_current_trace()
+                            new_omega_c = self.validate_peak(self.vna_control_panel.omega_C, self.last_omega_c, "cavity")
+                            if new_omega_c is not None:
+                                self.last_omega_c = new_omega_c
+                            omega_C = self.last_omega_c
+
+                            Delta = None
+                            if omega_C is not None and omega_Y is not None:
+                                Delta = omega_C - omega_Y
+
+                            if Delta is not None and abs(Delta) < abs(best_Delta):
                                 best_Delta = Delta
                                 best_current = new_current
 
-                            adjustment_attempts += 1
+                            attempt += 1
+                            if Delta is not None and abs(Delta) < delta_tolerance:
+                                print(f"Delta within tolerance: {Delta}. Stopping adjustments.")
+                                break
 
-                        # After adjustment loop, set current to best_current
-                        print(f"Setting current to best value: {best_current} A")
+                        print(f"Final best current for YIG: {best_current}, best Delta={best_Delta}")
                         with self.current_lock:
                             self.current_source.current.set(best_current)
-                            self.current_value = best_current  # Update current value
+                            self.current_value = best_current
 
-                        # Optionally, get final measurement at best current
+                        # Optionally do final re-measure
+                        time.sleep(0.2)
+                        self.switch_config_panel.set_configuration("YIG Readout Only")
                         time.sleep(0.1)
-                        freqs, power_dbm = self.vna_control_panel.get_current_trace()
-                        omega_C = self.vna_control_panel.omega_C
-                        omega_Y = self.vna_control_panel.omega_Y
-                        Delta = omega_C - omega_Y if omega_C and omega_Y else None
+                        freqs_final, power_final = self.vna_control_panel.get_current_trace()
+
+                        # Re-validate final YIG
+                        new_omega_y = self.validate_peak(self.vna_control_panel.omega_Y, self.last_omega_y, "yig")
+                        if new_omega_y is not None:
+                            self.last_omega_y = new_omega_y
+                        self.switch_config_panel.set_configuration("Cavity Readout Only")
+                        time.sleep(0.1)
+                        freqs_cav, power_cav = self.vna_control_panel.get_current_trace()
+                        new_omega_c = self.validate_peak(self.vna_control_panel.omega_C, self.last_omega_c, "cavity")
+                        if new_omega_c is not None:
+                            self.last_omega_c = new_omega_c
+
+                        # Recompute Delta final
+                        if self.last_omega_c is not None and self.last_omega_y is not None:
+                            Delta = self.last_omega_c - self.last_omega_y
+
+                        # store final YIG data
+                        omega_C = self.last_omega_c
+                        omega_Y = self.last_omega_y
 
                     # Save data to database
                     self.save_data_to_db(
@@ -163,8 +205,8 @@ class SweepWorker(QThread):
                     )
 
                     # Update progress
-                    current_step += 1
-                    progress_percent = int((current_step / total_steps) * 100)
+                    current_step_count += 1
+                    progress_percent = int((current_step_count / total_steps) * 100)
                     self.progress.emit(progress_percent)
 
             self.finished.emit()
@@ -178,6 +220,22 @@ class SweepWorker(QThread):
 
     def generate_voltage_list(self, start, end, step):
         return np.around(np.arange(start, end + step, step), decimals=8)
+
+    def validate_peak(self, new_peak, last_peak, mode="cavity"):
+        """
+        If new_peak is None, returns None.
+        If last_peak is None, returns new_peak (first measurement).
+        Otherwise, checks if new_peak is too far from last_peak. If so, ignore it as spurious.
+        """
+        if new_peak is None:
+            return None
+        if last_peak is None:
+            return new_peak
+        # if the difference is too large, treat it as spurious
+        if abs(new_peak - last_peak) > spurious_threshold:
+            print(f"WARNING: {mode} peak jumped from {last_peak:.4f} to {new_peak:.4f} GHz, ignoring as spurious.")
+            return last_peak
+        return new_peak
 
     def save_data_to_db(self, freqs, power_dbm, voltage, readout_type,
                         omega_C, omega_Y, kappa_C, kappa_Y, Delta, K):
@@ -196,20 +254,23 @@ class SweepWorker(QThread):
         cavity_fb_att = self.get_attenuator_value("cavity_att")
 
         # Convert readout type
+        rtype = readout_type
         if readout_type == "Cavity Readout Only":
-            readout_type = "cavity"
+            rtype = "cavity"
         elif readout_type == "YIG Readout Only":
-            readout_type = "yig"
-        else:
-            readout_type = "normal"
+            rtype = "yig"
+        elif readout_type == "Normal Operation":
+            rtype = "normal"
 
-        measurements = [
-            EPMeasurementModel(
+        measurements = []
+        from database import EPMeasurementModel
+        for freq, power in zip(freqs, power_dbm):
+            measurements.append(EPMeasurementModel(
                 experiment_id=self.experiment_id,
                 frequency_hz=freq,
                 power_dBm=power,
-                set_voltage=voltage,                
-                readout_type=readout_type,
+                set_voltage=voltage,
+                readout_type=rtype,
                 omega_C=omega_C,
                 omega_Y=omega_Y,
                 kappa_C=kappa_C,
@@ -223,9 +284,7 @@ class SweepWorker(QThread):
                 set_yig_fb_att=yig_fb_att,
                 set_cavity_fb_phase_deg=cavity_fb_phase,
                 set_cavity_fb_att=cavity_fb_att
-            )
-            for freq, power in zip(freqs, power_dbm)
-        ]
+            ))
 
         session = self.session_factory()
         try:
