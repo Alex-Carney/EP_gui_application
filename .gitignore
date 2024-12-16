@@ -8,3 +8,4 @@ traces_plots/
 *.sqlite
 csv/
 *.png
+manual_sweeps/

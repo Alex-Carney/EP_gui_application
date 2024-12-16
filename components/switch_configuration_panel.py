@@ -179,7 +179,7 @@ class SwitchConfigurationPanel(QWidget):
         self.status_label.setText("Current Configuration: YIG Readout Only")
         self.configuration_changed.emit("YIG Readout Only")
 
-    def set_configuration(self, configuration_name):
+    def set_configuration(self, configuration_name, skip_restore=False):
         if configuration_name == self.current_mode:
             # Already in this mode, do nothing
             return

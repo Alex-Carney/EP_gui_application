@@ -81,7 +81,7 @@ class MainApplication(QMainWindow):
         left_layout.addStretch()
 
         # Add VNA Control Panel
-        self.vna_control_panel = VNAControlPanel()
+        self.vna_control_panel = VNAControlPanel(voltage_control_panel=self.voltage_control_panel)
         right_layout.addWidget(self.vna_control_panel)
 
         # Add Sweep Control Panel

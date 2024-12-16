@@ -78,3 +78,6 @@ class VoltageControlPanel(QWidget):
             self.update_voltage_display()
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid number.")
+
+    def get_voltage(self):
+        return self.device_controller.get_voltage()

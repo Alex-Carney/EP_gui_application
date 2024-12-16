@@ -130,3 +130,4 @@ class CurrentControlPanel(QWidget):
             # Implement any necessary shutdown procedures
             pass
         event.accept()
+

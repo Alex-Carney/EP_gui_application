@@ -14,9 +14,12 @@ import lmfit
 
 
 class VNAControlPanel(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, voltage_control_panel, parent=None):
         super().__init__(parent)
         self.vna = None  # Will be initialized later
+
+        # Reference to voltage control panel
+        self.voltage_control_panel = voltage_control_panel
 
         # Baseline data
         self.baseline_power = None
@@ -316,22 +319,51 @@ class VNAControlPanel(QWidget):
             self.num_peaks_to_find = 1
 
     def save_data(self):
+        """
+        Automatically save the current VNA trace to a CSV file in the project root directory.
+        Each CSV row will include frequency, power, readout_type, set_voltage, and experiment_id
+        so that a future aggregator script can load them into the database.
+        """
         if not hasattr(self, 'freqs') or not hasattr(self, 'power_dbm'):
             QMessageBox.warning(self, "No Data", "No data to save.")
             return
 
-        options = QFileDialog.Options()
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Data", "", "CSV Files (*.csv);;All Files (*)", options=options
-        )
-        if filename:
-            import csv
-            with open(filename, 'w', newline='') as csvfile:
-                csvwriter = csv.writer(csvfile)
-                csvwriter.writerow(['Frequency (Hz)', 'Power (dBm)'])
-                for f, p in zip(self.freqs, self.power_dbm):
-                    csvwriter.writerow([f, p])
-            print(f"Data saved to {filename}")
+        # We assume your voltage control panel has a device_controller that returns the current voltage
+        current_voltage = self.voltage_control_panel.get_voltage()
+
+        # Readout type from self.current_configuration, e.g. "Cavity Readout Only", "YIG Readout Only", or "Normal Operation"
+        # For CSV we might store shorter strings: "cavity", "yig", "normal"
+        readout_type = self.current_configuration.lower().replace(' ', '_')  # e.g., "cavity_readout_only"
+
+        # Generate or retrieve an experiment_id. If you want a random UUID each time:
+        import uuid
+        experiment_id = str(uuid.uuid4())
+
+        # Build a filename for the CSV in the project root
+        filename = f"./vna_data_{readout_type}_{current_voltage:.3f}V.csv"
+
+        import csv
+        with open(filename, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            # Write a header with the columns we'll need for aggregator
+            csvwriter.writerow([
+                "experiment_id", "readout_type", "set_voltage",
+                "frequency_hz", "power_dBm"
+            ])
+            # For each data point, store a row
+            for f, p in zip(self.freqs, self.power_dbm):
+                csvwriter.writerow([
+                    experiment_id,
+                    readout_type,
+                    f"{current_voltage:.5f}",
+                    f"{f:.5f}",
+                    f"{p:.5f}"
+                ])
+
+        print(f"Data (with metadata) saved to {filename}")
+
+
+
 
     def collect_data_sync(self):
         # Collect data synchronously

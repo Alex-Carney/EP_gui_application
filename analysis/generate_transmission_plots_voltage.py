@@ -18,7 +18,8 @@ def __get_engine(db_path):
     return create_engine(f'sqlite:///{db_path}')
 
 
-def __get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max=99e9, voltage_min=-2.0, voltage_max=2.0):
+def __get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max=99e9, voltage_min=-2.0,
+                       voltage_max=2.0):
     # Fetch settings for the experiment
     settings_query = f"""
     SELECT DISTINCT set_loop_phase_deg, set_loop_att, set_loopback_att,
@@ -62,7 +63,8 @@ def __get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_m
         power_grid = pivot_table.values
         return power_grid, voltages, frequencies, settings
     else:
-        print(f"No data found for experiment {experiment_id}, readout type: {readout_type}, with voltage range: {voltage_min} to {voltage_max}")
+        print(
+            f"No data found for experiment {experiment_id}, readout type: {readout_type}, with voltage range: {voltage_min} to {voltage_max}")
         return None, None, None, None
 
 
@@ -86,7 +88,8 @@ def __process_all_traces(power_grid, voltages, frequencies, peak_finding_functio
     return pd.DataFrame({'voltage': voltage_list, 'peak_freq': peak_freqs_list, 'peak_power': peak_powers_list})
 
 
-def __generate_transmission_plot_with_peaks(power_grid, voltages, frequencies, peaks_df, experiment_id, readout_type, settings,
+def __generate_transmission_plot_with_peaks(power_grid, voltages, frequencies, peaks_df, experiment_id, readout_type,
+                                            settings,
                                             folder, vmin=-40, vmax=8):
     # Ensure the output directory exists
     if not os.path.exists(folder):
@@ -151,20 +154,18 @@ def plot_all_experiments_with_peaks(db_path, freq_min=1e9, freq_max=99e9, voltag
 
 
 if __name__ == "__main__":
-    db_path = '../databases/12_12_ovn_one.db'
+    db_path = './databases/THE_FIRST_MANUAL.db'
     plot_all_experiments_with_peaks(db_path=db_path,
-                                    voltage_min=-3,
-
-
+                                    voltage_min=-2.8,
+                                    freq_min=6.00125e9,
+                                    freq_max=6.003e9,
 
                                     voltage_max=0,
-                                    freq_min=6.0185e9,
-                                    freq_max=6.0205e9,)
-
+                                    )
 
 # GOOD RESULTS: another_attempt_again
 
 
-    # db_path = '../databases/12_9_overnight.db'
-    # engine = get_engine(db_path)
-    # experiment_id = '7ed9f8f6-fd12-4fcd-b14f-57b08dae27fc'
+# db_path = '../databases/12_9_overnight.db'
+# engine = get_engine(db_path)
+# experiment_id = '7ed9f8f6-fd12-4fcd-b14f-57b08dae27fc'

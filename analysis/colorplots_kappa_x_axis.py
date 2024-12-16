@@ -12,7 +12,7 @@ LABEL_FONT_SIZE = 19
 TICK_FONT_SIZE = 15
 SAVE_DPI = 400
 
-SAVE_VOLTAGE_TRACES = False
+SAVE_VOLTAGE_TRACES = True
 
 
 def get_engine(db_path):
@@ -546,7 +546,7 @@ def save_peak_differences_vs_kappa(normal_df, merged_df, power_grid, voltages, f
 
     plot_peak_differences_vs_kappa(file_path, output_folder)
 
-    return peak_diff_df
+    return peak_diff_df, file_path
 
 
 def eigenvalues(gain_loss, detuning, coupling, phi):
@@ -609,13 +609,26 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
 
     # Calculate J (half the max peak splitting)
     max_peak_diff = peak_diff_df['Peak Difference (GHz)'].max()
+    max_peak_diff_unc = peak_diff_df.loc[
+        peak_diff_df['Peak Difference (GHz)'] == max_peak_diff,
+        'Peak Difference_unc (GHz)'
+    ].values[0]
+
     J = max_peak_diff / 2
+    J_unc = max_peak_diff_unc / 2
 
     # Scale the data by J
     peak_diff_df['Scaled Kappa'] = peak_diff_df['Kappa'] / J
     peak_diff_df['Scaled Peak Difference'] = peak_diff_df['Peak Difference (GHz)'] / J
-    peak_diff_df['Scaled Kappa_unc'] = peak_diff_df['Kappa_unc'] / J
-    peak_diff_df['Scaled Peak Difference_unc'] = peak_diff_df['Peak Difference_unc (GHz)'] / J
+
+    # Calculate uncertainties for scaled values
+    # Uncertainty propagation formula
+    peak_diff_df['Scaled Kappa_unc'] = np.abs(peak_diff_df['Scaled Kappa']) * np.sqrt(
+        (peak_diff_df['Kappa_unc'] / peak_diff_df['Kappa']) ** 2 + (J_unc / J) ** 2
+    )
+    peak_diff_df['Scaled Peak Difference_unc'] = np.abs(peak_diff_df['Scaled Peak Difference']) * np.sqrt(
+        (peak_diff_df['Peak Difference_unc (GHz)'] / peak_diff_df['Peak Difference (GHz)']) ** 2 + (J_unc / J) ** 2
+    )
 
     # Plot scaled peak difference vs scaled Kappa with error bars
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -642,7 +655,7 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
                                                   phi=phi_theory, delta=delta_theory,
                                                   coupling=coupling_theory)
     # Plot the theoretical line
-    ax.plot(K_vals_th, imag_diff_th, label='Theory (Imag Diff)', color='blue', lw=2)
+    ax.plot(K_vals_th - 0, imag_diff_th, label='Theory (Imag Diff)', color='blue', lw=2)
 
     # Axis labels and title
     ax.set_xlabel('$K / J$', fontsize=14)
@@ -651,6 +664,13 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     ax.grid(True)
     ax.legend()
 
+    # Set the Y lim based on the max and min values of the data, not the error bars
+    y_min = -.25
+    y_max = 3
+
+    # Set plot limits
+    ax.set_ylim([y_min, y_max])
+
     # Save the plot
     plt.tight_layout()
     plot_path = os.path.join(output_folder, "scaled_peak_differences_vs_kappa_plot.png")
@@ -658,68 +678,116 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     plt.close(fig)
     print(f"Saved scaled peak differences vs. Kappa plot to {plot_path}")
 
-#
-# def plot_peak_differences_vs_kappa(csv_file, output_folder):
-#     """
-#     Plot the difference between the two Lorentzian peaks vs. Kappa.
-#
-#     Parameters:
-#         csv_file (str): Path to the CSV file containing the peak difference data.
-#         output_folder (str): Path to save the plot.
-#     """
-#     # Read the CSV file
-#     if not os.path.exists(csv_file):
-#         print(f"CSV file not found: {csv_file}")
-#         return
-#
-#     peak_diff_df = pd.read_csv(csv_file)
-#
-#     # Ensure the output folder exists
-#     if not os.path.exists(output_folder):
-#         os.makedirs(output_folder)
-#
-#     # Plot peak difference vs Kappa with error bars
-#     fig, ax = plt.subplots(figsize=(8, 6))
-#     ax.errorbar(
-#         peak_diff_df['Kappa'] * 1e3, peak_diff_df['Peak Difference (GHz)'] * 1e3,
-#         xerr=peak_diff_df['Kappa_unc'] * 1e3, yerr=peak_diff_df['Peak Difference_unc (GHz)'] * 1e3,
-#         fmt='o', ecolor='red', capsize=4, label='Peak Splitting', markersize=4
-#     )
-#
-#     # Find the max value on the Y axis, then draw a horizontal line at that value
-#     max_peak_diff = peak_diff_df['Peak Difference (GHz)'].max()
-#     ax.axhline(y=max_peak_diff * 1e3, color='green', linestyle='--', label='Theoretical EP Line')
-#
-#     # Add a vertical line at negative the same value
-#     ax.axvline(x=-max_peak_diff * 1e3, color='green', linestyle='--')
-#
-#     # Set plot limits
-#     ax.set_ylim([0, 2])  # y-axis in MHz
-#
-#     # Axis labels and title
-#     ax.set_xlabel('Kappa (MHz)')
-#     ax.set_ylabel('Peak Splitting (MHz)')
-#     ax.set_title('Double Lorentzian Peak Splitting vs Kappa')
-#     ax.grid(True)
-#     ax.legend()
-#
-#     # Save the plot
-#     plt.tight_layout()
-#     plot_path = os.path.join(output_folder, "peak_differences_vs_kappa_plot.png")
-#     plt.savefig(plot_path, dpi=SAVE_DPI)
-#     plt.close(fig)
-#     print(f"Saved peak differences vs. Kappa plot to {plot_path}")
+
+def plot_peak_locations_vs_kappa(normal_df, merged_df, power_grid, voltages, frequencies, output_folder, experiment_id,
+                                 peak_diff_file):
+    """
+    Plots the individual Lorentzian peak locations (in normal mode) vs Kappa/J on the X-axis,
+    with frequency (GHz) on the Y-axis. Each row yields up to 2 peaks from the double Lorentzian.
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Merge normal_df with merged_df to get Kappa
+    temp = pd.merge(normal_df, merged_df[['voltage', 'Kappa', 'Kappa_unc']], on='voltage', how='inner')
+
+    # We'll accumulate each row's peaks in a list
+    peak_locations_data = []
+
+    for i, row in temp.iterrows():
+        idx = np.argmin(abs(voltages - row['voltage']))
+        powers = power_grid[idx, :]
+
+        # Re-run find_and_fit_peaks for normal mode to get double Lorentzian
+        peaks_info = find_and_fit_peaks(frequencies, powers, 'normal')
+
+        if len(peaks_info) > 0:
+            peak = peaks_info[0]
+            out = peak['fit_result']
+            if out is not None:
+                # Extract double Lorentzian centers
+                center1 = out.params['lz1_center'].value
+                center2 = out.params['lz2_center'].value
+                c1_unc = out.params['lz1_center'].stderr or 0.0
+                c2_unc = out.params['lz2_center'].stderr or 0.0
+
+                # Save them so we can plot afterwards
+                peak_locations_data.append({
+                    'Kappa': row['Kappa'],
+                    'Kappa_unc': row['Kappa_unc'],
+                    'PeakFreqGHz': center1,  # in GHz
+                    'PeakFreqUncGHz': c1_unc
+                })
+                peak_locations_data.append({
+                    'Kappa': row['Kappa'],
+                    'Kappa_unc': row['Kappa_unc'],
+                    'PeakFreqGHz': center2,
+                    'PeakFreqUncGHz': c2_unc
+                })
+
+    if not peak_locations_data:
+        print("No normal-mode peaks found. Exiting plot_peak_locations_vs_kappa.")
+        return
+
+    if not os.path.exists(peak_diff_file):
+        print(f"CSV file not found: {peak_diff_file}")
+        return
+
+    peak_diff_df = pd.read_csv(peak_diff_file)
+
+    peak_locs_df = pd.DataFrame(peak_locations_data)
+
+    # Calculate J (half the max peak splitting)
+    max_peak_diff = peak_diff_df['Peak Difference (GHz)'].max()
+    max_peak_diff_unc = peak_diff_df.loc[
+        peak_diff_df['Peak Difference (GHz)'] == max_peak_diff,
+        'Peak Difference_unc (GHz)'
+    ].values[0]
+
+    J = max_peak_diff / 2
+    J_unc = max_peak_diff_unc / 2
+
+    # Add scaled columns
+    peak_locs_df['Scaled Kappa'] = peak_locs_df['Kappa'] / J
+    peak_locs_df['Scaled Kappa_unc'] = np.abs(peak_locs_df['Scaled Kappa']) * np.sqrt(
+        (peak_locs_df['Kappa_unc'] / peak_locs_df['Kappa']) ** 2 + (J_unc / J) ** 2
+    )
+
+    # Now we do a scatter plot: X = scaled Kappa, Y = PeakFreqGHz
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.errorbar(
+        peak_locs_df['Scaled Kappa'], peak_locs_df['PeakFreqGHz'],
+        xerr=peak_locs_df['Scaled Kappa_unc'], yerr=peak_locs_df['PeakFreqUncGHz'],
+        fmt='o', ecolor='red', capsize=4, label='Normal Mode Peaks', markersize=4
+    )
+
+    ax.set_xlabel('K / J')
+    ax.set_ylabel('Peak Frequency (GHz)')
+    ax.set_title('Normal Mode Peak Locations vs K/J')
+    ax.grid(True)
+    ax.legend()
+
+    # set y lim based on min and max values, from the data
+    y_min = peak_locs_df['PeakFreqGHz'].min()
+    y_max = peak_locs_df['PeakFreqGHz'].max()
+    ax.set_ylim([y_min, y_max])
+
+    plt.tight_layout()
+    plot_path = os.path.join(output_folder, f"peak_locations_vs_kappa_{experiment_id}.png")
+    plt.savefig(plot_path, dpi=400)
+    plt.close(fig)
+    print(f"Saved peak locations vs. K/J plot to {plot_path}")
 
 
 if __name__ == "__main__":
-    db_path = '../databases/12_9_overnight.db'
+    db_path = './databases/THE_SECOND_MANUAL.db'
     # db_path = '../databases/12_11_big_long.db'
     engine = get_engine(db_path)
-    experiment_id = '7ed9f8f6-fd12-4fcd-b14f-57b08dae27fc'
+    experiment_id = 'ABCD'
     # experiment_id = 'a7e52acf-5ea1-41c7-92ca-fab6b1381c6a'
-    freq_min = 6.0175e9
-    freq_max = 6.0215e9
-    voltage_min = -3
+    freq_min = 1e9
+    freq_max = 99e9
+    voltage_min = -2.8
     voltage_max = 0
     readout_types = ['normal', 'cavity', 'yig']
 
@@ -770,7 +838,14 @@ if __name__ == "__main__":
 
     # Save and plot peak differences vs. Kappa for normal mode double lorentzian
     output_folder = os.path.join("csv", f"{experiment_id}_peak_differences")
-    peak_diff_df = save_peak_differences_vs_kappa(
+    peak_diff_df, peak_diff_file = save_peak_differences_vs_kappa(
         normal_df, merged_df, all_results['normal'][2], all_results['normal'][3], all_results['normal'][4],
         output_folder, experiment_id
+    )
+
+    peak_locations_output_folder = os.path.join("csv", f"{experiment_id}_peak_locations")
+    plot_peak_locations_vs_kappa(
+        normal_df, merged_df, all_results['normal'][2],
+        all_results['normal'][3], all_results['normal'][4],
+        peak_locations_output_folder, experiment_id, peak_diff_file
     )
