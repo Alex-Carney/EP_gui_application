@@ -124,6 +124,6 @@ def create_database(db_name='experiment_data.db', folder_path='./databases'):
 
 if __name__ == "__main__":
     # Example usage
-    csv_folder_path = r"C:\Users\AlexPHD\Dartmouth College Dropbox\Alexander Carney\darpa_alex_local\EP_gui_application\manual_sweeps\second_sweep_30_dB_good_regime"
+    csv_folder_path = r"C:\Users\AlexPHD\Dartmouth College Dropbox\Alexander Carney\darpa_alex_local\EP_gui_application\manual_sweeps\first_sweep_bad_regime"
 
-    aggregate_csvs_into_db(csv_folder_path, db_name='THE_SECOND_MANUAL.db')
+    aggregate_csvs_into_db(csv_folder_path, db_name='THE_FIRST_MANUAL.db')

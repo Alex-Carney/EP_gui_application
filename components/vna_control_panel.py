@@ -301,7 +301,7 @@ class VNAControlPanel(QWidget):
     def on_click(self, event):
         if event.inaxes == self.ax1:
             if event.xdata is not None:
-                self.selected_freq = event.xdata * 1e9  # Convert GHz back to Hz
+                self.selected_freq = event.xdata  # Convert GHz back to Hz
                 self.update_plot_canvas()
 
     def closeEvent(self, event):

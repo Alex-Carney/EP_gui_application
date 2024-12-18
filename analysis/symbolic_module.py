@@ -79,6 +79,49 @@ def setup_symbolic_equations() -> ModelSymbolics:
     )
 
 
+def get_steady_state_response_transmission_hybrid(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
+    """
+    FOR TRANSMISSION, ALL PARAMETERS MUST BE FILLED. The only unfilled parameter is w_f
+    """
+    # Unpack symbols
+    w0 = symbols_dict.w0
+    gamma = symbols_dict.gamma
+    F = symbols_dict.F
+    steady_state_eqns = symbols_dict.steady_state_eqns
+
+    # Substitutions for transmission case
+    substitutions = {
+        w0[0]: params.cavity_freq,
+        w0[1]: params.w_y,
+        symbols_dict.J: params.J_val,
+        symbols_dict.g: params.g_val,
+        F[0]: params.drive_vector[0],
+        F[1]: params.drive_vector[1],
+        gamma[0]: params.gamma_vec[0],
+        gamma[1]: params.gamma_vec[1],
+        symbols_dict.phi_val: params.phi_val
+    }
+
+    ss_eqns_instantiated = steady_state_eqns.subs(substitutions)
+    # ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
+    #           params.readout_vector[1] * ss_eqns_instantiated[1])
+
+    # Lambdify with w_f as variable
+    return sp.lambdify(symbols_dict.w_f, ss_eqns_instantiated, 'numpy')
+
+
+def compute_photon_numbers_transmission_hybrid(ss_response_func, w_f_vals):
+    """
+    Computes the photon numbers for the transmission case.
+    ss_response_func: steady-state response function from get_steady_state_response_transmission
+    w_f_vals: array of LO frequencies
+    Returns an array of photon numbers.
+    """
+    photon_numbers_complex = ss_response_func(w_f_vals)
+    photon_numbers_real = np.abs(photon_numbers_complex) ** 2
+    return photon_numbers_real
+
+
 def get_steady_state_response_transmission(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
     """
     FOR TRANSMISSION, ALL PARAMETERS MUST BE FILLED. The only unfilled parameter is w_f
@@ -200,6 +243,7 @@ def calculate_theoretical_peak_splittings(symbols_dict, params, K_values):
     splittings_scaled = np.array(splittings) / params.J_val
 
     return K_scaled, splittings_scaled
+
 
 if __name__ == "__main__":
     # Setup symbolic equations

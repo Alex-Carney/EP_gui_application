@@ -9,3 +9,5 @@ traces_plots/
 csv/
 *.png
 manual_sweeps/
+plots_simulation/
+simulation_sweeps/

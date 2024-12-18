@@ -154,11 +154,11 @@ def plot_all_experiments_with_peaks(db_path, freq_min=1e9, freq_max=99e9, voltag
 
 
 if __name__ == "__main__":
-    db_path = './databases/THE_FIRST_MANUAL.db'
+    db_path = './databases/THE_SECOND_MANUAL.db'
     plot_all_experiments_with_peaks(db_path=db_path,
                                     voltage_min=-2.8,
-                                    freq_min=6.00125e9,
-                                    freq_max=6.003e9,
+                                    freq_min=6.004e9,
+                                    freq_max=6.008e9,
 
                                     voltage_max=0,
                                     )

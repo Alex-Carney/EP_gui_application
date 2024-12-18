@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_widths
 from lmfit.models import LorentzianModel
 from sqlalchemy import create_engine
+import full_simulation_expr as fse
 
 PLOTS_FOLDER = 'plots'
 TABLE_NAME = 'expr'
@@ -12,7 +13,7 @@ LABEL_FONT_SIZE = 19
 TICK_FONT_SIZE = 15
 SAVE_DPI = 400
 
-SAVE_VOLTAGE_TRACES = True
+SAVE_VOLTAGE_TRACES = False
 
 
 def get_engine(db_path):
@@ -62,7 +63,12 @@ def get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max
 
 
 def find_and_fit_peaks(frequencies, power_dbm, readout_type, center_freq_hz=None, span_freq_hz=None,
-                       num_peaks_to_find=1):
+                       num_peaks_to_find=1, peak_midpoint=None):
+    """
+    Find peaks using scipy, and fit them with Lorentzian(s).
+    If readout_type=='normal' and peak_midpoint is provided,
+    the two Lorentzian centers are constrained to lie on either side of 'peak_midpoint'.
+    """
     if center_freq_hz is None:
         center_freq_hz = (frequencies.min() + frequencies.max()) / 2
     if span_freq_hz is None:
@@ -92,22 +98,37 @@ def find_and_fit_peaks(frequencies, power_dbm, readout_type, center_freq_hz=None
 
     top_peaks = peaks[sorted_indices[:desired_peaks]]
 
-    def double_lorentzian_fit(x_fit_ghz, y_fit_linear, guess_centers):
+    def double_lorentzian_fit(x_fit_ghz, y_fit_linear, guess_centers, midpoint=None):
+        from lmfit.models import LorentzianModel
         lz1 = LorentzianModel(prefix='lz1_')
         lz2 = LorentzianModel(prefix='lz2_')
         mod = lz1 + lz2
+
         max_height = y_fit_linear.max()
         sigma_guess = 0.0005
         amp_guess1 = max_height * np.pi * sigma_guess
         amp_guess2 = amp_guess1
         pars = mod.make_params()
-        pars['lz1_center'].set(value=guess_centers[0], min=x_fit_ghz.min(), max=x_fit_ghz.max())
+
+        if midpoint is not None and len(guess_centers) == 2:
+            # Force Lorentzian 1 < midpoint, Lorentzian 2 > midpoint:
+            c1_guess = guess_centers[0]
+            c2_guess = guess_centers[1]
+            # Sort them so c1_guess < c2_guess
+            c1_guess, c2_guess = sorted([c1_guess, c2_guess])
+            pars['lz1_center'].set(value=c1_guess, min=x_fit_ghz.min(), max=midpoint)
+            pars['lz2_center'].set(value=c2_guess, min=midpoint, max=x_fit_ghz.max())
+        else:
+            # Original constraints
+            pars['lz1_center'].set(value=guess_centers[0], min=x_fit_ghz.min(), max=x_fit_ghz.max())
+            pars['lz2_center'].set(value=guess_centers[1], min=x_fit_ghz.min(), max=x_fit_ghz.max())
+
         pars['lz1_amplitude'].set(value=amp_guess1, min=0)
         pars['lz1_sigma'].set(value=sigma_guess, min=1e-6)
 
-        pars['lz2_center'].set(value=guess_centers[1], min=x_fit_ghz.min(), max=x_fit_ghz.max())
         pars['lz2_amplitude'].set(value=amp_guess2, min=0)
         pars['lz2_sigma'].set(value=sigma_guess, min=1e-6)
+
         try:
             out = mod.fit(y_fit_linear, pars, x=x_fit_ghz)
         except:
@@ -115,6 +136,7 @@ def find_and_fit_peaks(frequencies, power_dbm, readout_type, center_freq_hz=None
         return out
 
     def single_lorentzian_fit(x_fit_ghz, y_fit_linear, center_guess):
+        from lmfit.models import LorentzianModel
         max_height = y_fit_linear.max()
         sigma_guess = 0.001
         amp_guess = max_height * np.pi * sigma_guess
@@ -130,11 +152,13 @@ def find_and_fit_peaks(frequencies, power_dbm, readout_type, center_freq_hz=None
         return out
 
     if readout_type == 'normal':
+        # Double Lorentzian logic
         if len(top_peaks) == 0:
             peaks_info.append(
                 {'readout_type': readout_type, 'peak_freqs_ghz': [], 'fit_result': None, 'x_fit_ghz': None,
                  'y_fit_linear': None})
             return peaks_info
+
         if len(top_peaks) == 1:
             p_freq_hz = frequencies[top_peaks[0]]
             p_freq_ghz = p_freq_hz / 1e9
@@ -159,12 +183,19 @@ def find_and_fit_peaks(frequencies, power_dbm, readout_type, center_freq_hz=None
             peaks_info.append({'readout_type': readout_type, 'peak_freqs_ghz': guess_centers, 'fit_result': None,
                                'x_fit_ghz': x_fit_ghz, 'y_fit_linear': y_fit_linear})
             return peaks_info
-        out = double_lorentzian_fit(x_fit_ghz, y_fit_linear, guess_centers)
-        peaks_info.append(
-            {'readout_type': readout_type, 'peak_freqs_ghz': guess_centers, 'fit_result': out, 'x_fit_ghz': x_fit_ghz,
-             'y_fit_linear': y_fit_linear})
+
+        out = double_lorentzian_fit(x_fit_ghz, y_fit_linear, guess_centers, midpoint=peak_midpoint)
+        peaks_info.append({
+            'readout_type': readout_type,
+            'peak_freqs_ghz': guess_centers,
+            'fit_result': out,
+            'x_fit_ghz': x_fit_ghz,
+            'y_fit_linear': y_fit_linear
+        })
         return peaks_info
+
     else:
+        # single-lorentzian logic
         peak_idx = top_peaks[0]
         peak_freq_hz = frequencies[peak_idx]
         peak_freq_ghz = peak_freq_hz / 1e9
@@ -183,14 +214,24 @@ def find_and_fit_peaks(frequencies, power_dbm, readout_type, center_freq_hz=None
         y_fit_linear = 10 ** (power_dbm[fit_mask] / 10)
 
         if len(x_fit_ghz) < 5:
-            peaks_info.append(
-                {'readout_type': readout_type, 'peak_freq_ghz': peak_freq_ghz, 'fwhm_ghz': fwhm_ghz, 'fit_result': None,
-                 'x_fit_ghz': x_fit_ghz, 'y_fit_linear': y_fit_linear})
+            peaks_info.append({
+                'readout_type': readout_type,
+                'peak_freq_ghz': peak_freq_ghz,
+                'fwhm_ghz': fwhm_ghz,
+                'fit_result': None,
+                'x_fit_ghz': x_fit_ghz,
+                'y_fit_linear': y_fit_linear
+            })
             return peaks_info
         out = single_lorentzian_fit(x_fit_ghz, y_fit_linear, peak_freq_ghz)
-        peaks_info.append(
-            {'readout_type': readout_type, 'peak_freq_ghz': peak_freq_ghz, 'fwhm_ghz': fwhm_ghz, 'fit_result': out,
-             'x_fit_ghz': x_fit_ghz, 'y_fit_linear': y_fit_linear})
+        peaks_info.append({
+            'readout_type': readout_type,
+            'peak_freq_ghz': peak_freq_ghz,
+            'fwhm_ghz': fwhm_ghz,
+            'fit_result': out,
+            'x_fit_ghz': x_fit_ghz,
+            'y_fit_linear': y_fit_linear
+        })
         return peaks_info
 
 
@@ -430,12 +471,44 @@ def plot_kappa_colorplot(power_grid, voltages, frequencies, merged_df, experimen
 
 
 def replot_normal_mode_traces_with_kappa(normal_df, merged_df, power_grid, voltages, frequencies, experiment_id):
+    """
+    Re-plot normal mode traces by Kappa, using a forced midpoint for the double Lorentzian solver.
+    This ensures Lorentzian 1 < midpoint < Lorentzian 2, preventing solutions from swapping as peaks merge.
+    """
     temp = pd.merge(normal_df, merged_df[['voltage', 'Kappa']], on='voltage', how='inner')
     output_folder = os.path.join("traces_plots", f"{experiment_id}_normal_by_kappa")
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    def plot_normal_trace_by_kappa(kappa_value, voltage, frequencies, power_dbm, peaks_info):
+    # 1) Find the row where |Kappa| is smallest.
+    temp['abs_kappa'] = temp['Kappa'].abs()
+    idx_smallest_k = temp['abs_kappa'].idxmin()
+    # Row with smallest |K|
+    row_smallest_k = temp.loc[idx_smallest_k]
+
+    # 2) Use that row to get a first guess for the midpoint. We fit once:
+    idx_smallest = np.argmin(abs(voltages - row_smallest_k['voltage']))
+    powers_smallest = power_grid[idx_smallest, :]
+
+    # We'll assume you have an updated find_and_fit_peaks that can accept 'peak_midpoint=...'
+    # but first we get a preliminary fit without midpoint, to figure out the midpoint
+    prelim_peaks = find_and_fit_peaks(frequencies, powers_smallest, 'normal', center_freq_hz=None, span_freq_hz=None)
+    midpoint = None
+    if len(prelim_peaks) > 0 and prelim_peaks[0]['fit_result'] is not None:
+        out = prelim_peaks[0]['fit_result']
+        try:
+            # Extract double-lorentzian centers
+            center1 = out.params['lz1_center'].value
+            center2 = out.params['lz2_center'].value
+            midpoint = (center1 + center2) / 2.0
+            print(f"Computed midpoint from smallest |K| row: midpoint={midpoint:.6f} GHz")
+        except Exception as e:
+            print(f"Could not compute midpoint from row_smallest_k: {e}")
+            midpoint = None
+    else:
+        print("No valid double-lorentzian fit found at smallest |K|, proceeding without midpoint constraint.")
+
+    def plot_normal_trace_by_kappa(kappa_value, voltage, frequencies, power_dbm, peaks_info, midpoint_freq=None):
         freqs_in_ghz = frequencies / 1e9
         fig, ax = plt.subplots(figsize=(8, 5))
         ax.plot(freqs_in_ghz, power_dbm, 'b', label='Data')
@@ -443,10 +516,15 @@ def replot_normal_mode_traces_with_kappa(normal_df, merged_df, power_grid, volta
         ax.set_ylabel('Power (dBm)')
         ax.set_title(f'Kappa = {kappa_value:.6f} GHz (Voltage={voltage:.3f} V, Normal Mode)')
 
+        # Draw a red dashed line at the vertical midpoint_freq
+        if midpoint_freq is not None:
+            ax.axvline(midpoint_freq, color='r', linestyle='--', label='Midpoint Frequency')
+
         if len(peaks_info) > 0:
             peak = peaks_info[0]
             out = peak['fit_result']
-            peak_freqs_ghz = peak['peak_freqs_ghz']
+            peak_freqs_ghz = peak.get('peak_freqs_ghz', [])
+            # Plot initial red stars for the top two peaks
             for pf in peak_freqs_ghz:
                 peak_power_initial = power_dbm[np.argmin(abs(freqs_in_ghz - pf))]
                 ax.plot(pf, peak_power_initial, 'r*', markersize=10)
@@ -456,14 +534,24 @@ def replot_normal_mode_traces_with_kappa(normal_df, merged_df, power_grid, volta
                 y_fit_db = 10 * np.log10(y_fit_linear)
                 ax.plot(x_fit_ghz, y_fit_db, 'm--', label='Double Lorentzian Sum')
                 comps = out.eval_components(x=x_fit_ghz)
-                lz1 = comps['lz1_']
-                lz2 = comps['lz2_']
-                y_fit_db_lz1 = 10 * np.log10(lz1)
-                y_fit_db_lz2 = 10 * np.log10(lz2)
-                ax.plot(x_fit_ghz, y_fit_db_lz1, 'c:', label='Lorentzian 1')
-                ax.plot(x_fit_ghz, y_fit_db_lz2, 'y:', label='Lorentzian 2')
+                lz1 = comps.get('lz1_', None)
+                lz2 = comps.get('lz2_', None)
+                if lz1 is not None:
+                    y_fit_db_lz1 = 10 * np.log10(lz1)
+                    ax.plot(x_fit_ghz, y_fit_db_lz1, 'c:', label='Lorentzian 1')
+                if lz2 is not None:
+                    y_fit_db_lz2 = 10 * np.log10(lz2)
+                    ax.plot(x_fit_ghz, y_fit_db_lz2, 'y:', label='Lorentzian 2')
                 center1 = out.params['lz1_center'].value
                 center2 = out.params['lz2_center'].value
+                linewidth1 = out.params['lz1_sigma'].value
+                linewidth2 = out.params['lz2_sigma'].value
+
+                # ANontate the two linewidths
+                # Annotate the two linewidths somewhere on the plot
+                ax.text(0.5, 0.5, f"LW1: {linewidth1:.6f} GHz", transform=ax.transAxes, ha='center', color='c')
+                ax.text(0.5, 0.4, f"LW2: {linewidth2:.6f} GHz", transform=ax.transAxes, ha='center', color='y')
+
                 pwr_lin1 = out.eval(x=np.array([center1]))
                 pwr_db1 = 10 * np.log10(pwr_lin1)
                 ax.plot(center1, pwr_db1, 'c*', markersize=10, label='Lorentzian 1 Peak')
@@ -477,12 +565,15 @@ def replot_normal_mode_traces_with_kappa(normal_df, merged_df, power_grid, volta
         plt.close(fig)
         print(f"Saved normal mode trace plot with Kappa={kappa_value:.6f} GHz to {file_path}")
 
+    # 3) Now loop over rows, re-run find_and_fit_peaks(..., peak_midpoint=midpoint)
     for i, row in temp.iterrows():
         idx = np.argmin(abs(voltages - row['voltage']))
         powers = power_grid[idx, :]
-        # Re-run find_and_fit_peaks for normal mode
-        peaks_info = find_and_fit_peaks(frequencies, powers, 'normal')
-        plot_normal_trace_by_kappa(row['Kappa'], row['voltage'], frequencies, powers, peaks_info)
+
+        # Use the updated find_and_fit_peaks with the 'peak_midpoint' param
+        peaks_info = find_and_fit_peaks(frequencies, powers, 'normal', peak_midpoint=midpoint)
+        plot_normal_trace_by_kappa(row['Kappa'], row['voltage'], frequencies, powers, peaks_info,
+                                   midpoint_freq=midpoint)
 
 
 def save_peak_differences_vs_kappa(normal_df, merged_df, power_grid, voltages, frequencies, output_folder,
@@ -549,6 +640,28 @@ def save_peak_differences_vs_kappa(normal_df, merged_df, power_grid, voltages, f
     return peak_diff_df, file_path
 
 
+def compute_J_from_smallest_K(peak_diff_df):
+    """
+    Compute J from the row where |Kappa| is closest to zero,
+    instead of using the maximum peak difference.
+    """
+    # Find row where Kappa is closest to zero
+    peak_diff_df['abs_kappa'] = peak_diff_df['Kappa'].abs()
+    idx_closest = peak_diff_df['abs_kappa'].idxmin()
+
+    row_closest = peak_diff_df.loc[idx_closest]
+
+    peak_difference = row_closest['Peak Difference (GHz)']
+    peak_difference_unc = row_closest['Peak Difference_unc (GHz)']
+
+    # J is half that difference
+    J = peak_difference / 2
+    J_unc = peak_difference_unc / 2
+
+    print(f"Using smallest |Kappa| row to define J = {J:.6f} ± {J_unc:.6f} GHz")
+    return J, J_unc
+
+
 def eigenvalues(gain_loss, detuning, coupling, phi):
     """
     Calculate eigenvalues of the given 2x2 matrix system.
@@ -607,15 +720,12 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    # Calculate J (half the max peak splitting)
-    max_peak_diff = peak_diff_df['Peak Difference (GHz)'].max()
-    max_peak_diff_unc = peak_diff_df.loc[
-        peak_diff_df['Peak Difference (GHz)'] == max_peak_diff,
-        'Peak Difference_unc (GHz)'
-    ].values[0]
+    J, J_unc = compute_J_from_smallest_K(peak_diff_df)
 
-    J = max_peak_diff / 2
-    J_unc = max_peak_diff_unc / 2
+    # print("OVERRIDING J, J_UNC")
+    # J = 0.0006
+    # J_unc = 0.000068
+    # J = 1
 
     # Scale the data by J
     peak_diff_df['Scaled Kappa'] = peak_diff_df['Kappa'] / J
@@ -678,6 +788,104 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     plt.close(fig)
     print(f"Saved scaled peak differences vs. Kappa plot to {plot_path}")
 
+    # Plot again, but this time, overlay the theory predicted by FSE
+    omega_c_val = np.mean(merged_df['omega_c'])
+    omega_y_val = np.mean(merged_df['omega_y'])
+    kappa_c_val = np.min(merged_df['kappa_c'])
+    print("Starting simulation with omega_c = ", omega_c_val, "omega_y = ", omega_y_val, "kappa_c = ", kappa_c_val,
+          "J = ", J)
+    simulation_result_df = fse.run_simulated_experiment(j_coupling=J, omega_c=omega_c_val, omega_y=omega_y_val,
+                                                        kappa_c=kappa_c_val)
+
+    # Plot scaled peak difference vs scaled Kappa with error bars
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.errorbar(
+        peak_diff_df['Scaled Kappa'], peak_diff_df['Scaled Peak Difference'],
+        xerr=peak_diff_df['Scaled Kappa_unc'], yerr=peak_diff_df['Scaled Peak Difference_unc'],
+        fmt='o', ecolor='red', capsize=4, label='Scaled Peak Splitting (Exp)', markersize=4
+    )
+
+    theory_y_axis = simulation_result_df['K'] / J
+    theory_x_axis = simulation_result_df['hybrid_peak_difference'] / J
+
+    ax.plot(theory_y_axis, theory_x_axis, label='Theory (FSE)', color='green', lw=2)
+
+    # set X axis from -3 to 0
+    ax.set_xlim([-3, -1])
+
+    # Axis labels and title
+    ax.set_xlabel('$K / J$', fontsize=14)
+    ax.set_ylabel('Splitting / J', fontsize=14)
+    ax.set_title('Scaled Double Lorentzian Peak Splitting vs Scaled Kappa', fontsize=16)
+    ax.grid(True)
+    ax.legend()
+
+    # Set the Y lim based on the max and min values of the data, not the error bars
+    y_min = -.25
+    y_max = 3
+
+    # Set plot limits
+    ax.set_ylim([y_min, y_max])
+
+    # Save the plot
+    plt.tight_layout()
+    plot_path = os.path.join(output_folder, "FSE_scaled_peak_differences_vs_kappa_plot.png")
+    plt.savefig(plot_path, dpi=SAVE_DPI)
+    plt.close(fig)
+    print(f"Saved scaled peak differences vs. Kappa plot to {plot_path}")
+
+    # Plot again, but this time, plot the unscaled versions (not scaled by J)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.errorbar(
+        peak_diff_df['Kappa'], peak_diff_df['Peak Difference (GHz)'],
+        xerr=peak_diff_df['Kappa_unc'], yerr=peak_diff_df['Peak Difference_unc (GHz)'],
+        fmt='o', ecolor='red', capsize=4, label='Peak Splitting (Exp)', markersize=4
+    )
+
+    # Run the experiment with multiple different J values
+    extra_J_values = [0.0005414, 0.0006, 0.00061,0.00062,0.00063,0.00064,0.00065,]
+    extra_J_values = [0.00062]
+    # For each J value, add the trace to the plot after simulating the experiment
+    for J_val in extra_J_values:
+        print("Starting simulation with omega_c = ", omega_c_val, "omega_y = ", omega_y_val, "kappa_c = ", kappa_c_val,
+              "J = ", J_val)
+        simulation_result_df = fse.run_simulated_experiment(j_coupling=J_val, omega_c=omega_c_val, omega_y=omega_y_val,
+                                                            kappa_c=kappa_c_val)
+        theory_y_axis = simulation_result_df['K']
+        theory_x_axis = simulation_result_df['hybrid_peak_difference']
+
+        ax.plot(theory_y_axis, theory_x_axis, label=f'Theory (FSE, J={J_val})', lw=2)
+
+    # Axis labels and title
+    ax.set_xlabel('$K$', fontsize=14)
+    ax.set_ylabel('Splitting (GHz)', fontsize=14)
+    ax.set_title('Double Lorentzian Peak Splitting vs Kappa', fontsize=16)
+    ax.grid(True)
+    # Add a legend
+    ax.legend()
+
+    # SEt based on the value of the data itself, not hte error bars
+    y_min = 0
+    y_max = peak_diff_df['Peak Difference (GHz)'].max() * 1.5
+
+    # Get the min K
+    x_min = peak_diff_df['Kappa'].min()
+
+    # Set plot limits
+    ax.set_ylim([y_min, y_max])
+    ax.set_xlim([x_min, -.0005])
+
+    # Save the plot
+    plt.tight_layout()
+    plot_path = os.path.join(output_folder, "unscaled_peak_differences_vs_kappa_plot.png")
+    plt.savefig(plot_path, dpi=SAVE_DPI)
+    plt.close(fig)
+
+
+
+
+
+
 
 def plot_peak_locations_vs_kappa(normal_df, merged_df, power_grid, voltages, frequencies, output_folder, experiment_id,
                                  peak_diff_file):
@@ -738,14 +946,22 @@ def plot_peak_locations_vs_kappa(normal_df, merged_df, power_grid, voltages, fre
     peak_locs_df = pd.DataFrame(peak_locations_data)
 
     # Calculate J (half the max peak splitting)
-    max_peak_diff = peak_diff_df['Peak Difference (GHz)'].max()
-    max_peak_diff_unc = peak_diff_df.loc[
-        peak_diff_df['Peak Difference (GHz)'] == max_peak_diff,
-        'Peak Difference_unc (GHz)'
-    ].values[0]
+    # max_peak_diff = peak_diff_df['Peak Difference (GHz)'].max()
+    # max_peak_diff_unc = peak_diff_df.loc[
+    #     peak_diff_df['Peak Difference (GHz)'] == max_peak_diff,
+    #     'Peak Difference_unc (GHz)'
+    # ].values[0]
+    #
+    # J = max_peak_diff / 2
+    # J_unc = max_peak_diff_unc / 2
 
-    J = max_peak_diff / 2
-    J_unc = max_peak_diff_unc / 2
+    J, J_unc = compute_J_from_smallest_K(peak_diff_df)
+
+    # print("OVERRIDING J, J_UNC")
+    # J = 0.0006
+    # J = 1
+
+    print('using J = ', J, '±', J_unc)
 
     # Add scaled columns
     peak_locs_df['Scaled Kappa'] = peak_locs_df['Kappa'] / J
@@ -780,13 +996,20 @@ def plot_peak_locations_vs_kappa(normal_df, merged_df, power_grid, voltages, fre
 
 
 if __name__ == "__main__":
-    db_path = './databases/THE_SECOND_MANUAL.db'
-    # db_path = '../databases/12_11_big_long.db'
+    # db_path = './databases/THE_SECOND_MANUAL.db'
+    db_path = './databases/THE_FIRST_MANUAL.db'
     engine = get_engine(db_path)
-    experiment_id = 'ABCD'
+    # experiment_id = 'ABCD'
+    experiment_id = 'AAAA'
     # experiment_id = 'a7e52acf-5ea1-41c7-92ca-fab6b1381c6a'
-    freq_min = 1e9
-    freq_max = 99e9
+    # range for AAAA
+    freq_min = 6.000e9
+    freq_max = 6.004e9
+
+    # range for ABCD
+    # freq_min = 6.001e9
+    # freq_max = 6.01e9
+
     voltage_min = -2.8
     voltage_max = 0
     readout_types = ['normal', 'cavity', 'yig']

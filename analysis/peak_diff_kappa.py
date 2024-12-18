@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 SAVE_DPI = 400
 
+
 def plot_peak_differences_vs_kappa(csv_file, output_folder):
     """
     Plot the difference between the two Lorentzian peaks vs. Kappa, scaled by J.
@@ -58,6 +59,7 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     plt.savefig(plot_path, dpi=SAVE_DPI)
     plt.close(fig)
     print(f"Saved scaled peak differences vs. Kappa plot to {plot_path}")
+
 
 # Example usage
 if __name__ == "__main__":
