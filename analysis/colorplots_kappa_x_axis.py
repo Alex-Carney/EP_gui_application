@@ -21,9 +21,9 @@ def get_engine(db_path):
 
 
 def get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max=99e9, voltage_min=-2.0,
-                     voltage_max=2.0):
+                     voltage_max=2.0, scattershot=False, scattershot_csv=None):
     settings_query = f"""
-    SELECT DISTINCT set_loop_phase_deg, set_loop_att, set_loopback_att,
+    SELECT DISTINCT set_loop_att, set_loopback_att,
                     set_yig_fb_phase_deg, set_yig_fb_att,
                     set_cavity_fb_phase_deg, set_cavity_fb_att
     FROM {TABLE_NAME}
@@ -32,7 +32,6 @@ def get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max
     settings_df = pd.read_sql_query(settings_query, engine)
     if settings_df.empty:
         settings = {
-            "set_loop_phase_deg": "N/A",
             "set_loop_att": "N/A",
             "set_loopback_att": "N/A",
             "set_yig_fb_phase_deg": "N/A",
@@ -44,7 +43,7 @@ def get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max
         settings = settings_df.iloc[0]
 
     data_query = f"""
-    SELECT frequency_hz, set_voltage, power_dBm FROM {TABLE_NAME}
+    SELECT frequency_hz, set_voltage, power_dBm, set_loop_phase_deg FROM {TABLE_NAME}
     WHERE experiment_id = '{experiment_id}'
     AND readout_type = '{readout_type}'
     AND set_voltage BETWEEN {voltage_min} AND {voltage_max}
@@ -54,6 +53,29 @@ def get_data_from_db(engine, experiment_id, readout_type, freq_min=1e9, freq_max
     data = pd.read_sql_query(data_query, engine)
     if data.empty:
         return None, None, None, None
+
+    scatter_dict = None
+    if scattershot and scattershot_csv is not None:
+        scatter_df = pd.read_csv(scattershot_csv)
+        # Columns must be named e.g. "Voltage" and "Best Phase".
+        # Make a dict:  { voltage_value: phase_value }
+        scatter_dict = scatter_df.set_index('Voltage')['Best Phase'].to_dict()
+
+    if scattershot and scatter_dict:
+        # We must keep only rows for which set_loop_phase_deg == scatter_dict[row['set_voltage']]
+        def keep_row(r):
+            v = r['set_voltage']
+            # If no mapping for that voltage, discard
+            if v not in scatter_dict:
+                return False
+            return r['set_loop_phase_deg'] == scatter_dict[v]
+
+        print(f"Applying filter - only keeping rows where set_loop_phase_deg is in scatterdict")
+        data = data[data.apply(keep_row, axis=1)]
+        if data.empty:
+            print("All data filtered out by scattershot mode. Returning None.")
+            return None, None, None, None
+        print('data only has the proper loop phases now')
 
     pivot_table = data.pivot_table(index='set_voltage', columns='frequency_hz', values='power_dBm', aggfunc='first')
     voltages = pivot_table.index.values
@@ -452,7 +474,7 @@ def plot_kappa_colorplot(power_grid, voltages, frequencies, merged_df, experimen
     c = ax.pcolormesh(kappa_edges, freq_edges / 1e9, power_grid_sorted.T, shading='auto', cmap='inferno', vmin=vmin,
                       vmax=vmax)
     title = (f"Exp ID: {experiment_id} - {readout_type.capitalize()} Readout\n"
-             f"Loop Phase: {settings['set_loop_phase_deg']}°, Loop Att: {settings['set_loop_att']} dB, "
+             f"Loop Att: {settings['set_loop_att']} dB, "
              f"Loopback Att: {settings['set_loopback_att']} dB\n"
              f"Cavity FB Phase: {settings['set_cavity_fb_phase_deg']}°, Cavity FB Att: {settings['set_cavity_fb_att']} dB, "
              f"YIG FB Phase: {settings['set_yig_fb_phase_deg']}°, YIG FB Att: {settings['set_yig_fb_att']} dB")
@@ -843,8 +865,8 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     )
 
     # Run the experiment with multiple different J values
-    extra_J_values = [0.0005414, 0.0006, 0.00061,0.00062,0.00063,0.00064,0.00065,]
-    extra_J_values = [0.00062]
+    extra_J_values = [0.0005414, 0.0006, 0.00061, 0.00062, 0.00063, 0.00064, 0.00065, ]
+    extra_J_values = [0.0009177761452159, 0.0009977761452159]
     # For each J value, add the trace to the plot after simulating the experiment
     for J_val in extra_J_values:
         print("Starting simulation with omega_c = ", omega_c_val, "omega_y = ", omega_y_val, "kappa_c = ", kappa_c_val,
@@ -880,11 +902,6 @@ def plot_peak_differences_vs_kappa(csv_file, output_folder):
     plot_path = os.path.join(output_folder, "unscaled_peak_differences_vs_kappa_plot.png")
     plt.savefig(plot_path, dpi=SAVE_DPI)
     plt.close(fig)
-
-
-
-
-
 
 
 def plot_peak_locations_vs_kappa(normal_df, merged_df, power_grid, voltages, frequencies, output_folder, experiment_id,
@@ -997,20 +1014,26 @@ def plot_peak_locations_vs_kappa(normal_df, merged_df, power_grid, voltages, fre
 
 if __name__ == "__main__":
     # db_path = './databases/THE_SECOND_MANUAL.db'
-    db_path = './databases/THE_FIRST_MANUAL.db'
+    db_path = './databases/scattershot_test2.db'
+    # MAKE SURE TO CHANGE THE EXPERIMENT ID TOO
+    experiment_id = '96187cb2-5d3d-40eb-9b3a-6d1d69b7ac0a'
+
+    scattershot_mode = True
+    scattershot_csv = 'the_optimal_path_csv.csv'
+
     engine = get_engine(db_path)
     # experiment_id = 'ABCD'
-    experiment_id = 'AAAA'
+
     # experiment_id = 'a7e52acf-5ea1-41c7-92ca-fab6b1381c6a'
     # range for AAAA
-    freq_min = 6.000e9
-    freq_max = 6.004e9
+    freq_min = 5.996e9
+    freq_max = 6.001e9
 
     # range for ABCD
     # freq_min = 6.001e9
     # freq_max = 6.01e9
 
-    voltage_min = -2.8
+    voltage_min = -3
     voltage_max = 0
     readout_types = ['normal', 'cavity', 'yig']
 
@@ -1026,7 +1049,9 @@ if __name__ == "__main__":
 
     for rt in readout_types:
         power_grid, voltages, frequencies, settings = get_data_from_db(engine, experiment_id, rt, freq_min, freq_max,
-                                                                       voltage_min, voltage_max)
+                                                                       voltage_min, voltage_max,
+                                                                       scattershot=scattershot_mode,
+                                                                       scattershot_csv=scattershot_csv)
         if power_grid is None:
             continue
         peaks_df = process_all_traces(power_grid, voltages, frequencies, __default_peak_finding_function, experiment_id,

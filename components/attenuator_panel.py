@@ -1,7 +1,9 @@
 # components/attenuator_panel.py
 import sys
-if "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers" not in sys.path:
-    sys.path.append("S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers")
+import config
+
+if config.DRIVERS_PATH not in sys.path:
+    sys.path.append(config.DRIVERS_PATH)
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QPushButton, QLineEdit, QComboBox, QMessageBox
 from config import config

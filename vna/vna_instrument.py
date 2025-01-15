@@ -3,12 +3,13 @@
 import numpy as np
 from qm.qua import *
 from qm.QuantumMachinesManager import QuantumMachinesManager
-from vna.configuration import *
+import vna.configuration as configuration
 from scipy import signal
 import sys
 
-if "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers" not in sys.path:
-    sys.path.append("S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers")
+import config
+if config.DRIVERS_PATH not in sys.path:
+    sys.path.append(config.DRIVERS_PATH)
 try:
     import sc5511a
     from sc5511a import SignalCore_SC5511A
@@ -39,8 +40,8 @@ class VectorNetworkAnalyzer:
         self.lo.set_output(1)
 
         # QM Manager
-        self.qmm = QuantumMachinesManager(qop_ip, log_level=0)
-        self.qm = self.qmm.open_qm(config)
+        self.qmm = QuantumMachinesManager(configuration.qop_ip, log_level=0)
+        self.qm = self.qmm.open_qm(configuration.config)
 
     def set_center_frequency(self, center_freq):
         self.center_freq = center_freq

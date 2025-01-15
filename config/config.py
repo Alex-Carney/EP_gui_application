@@ -3,9 +3,14 @@
 # Drivers path
 DRIVERS_PATH = "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers"
 
+# DRIVERS_PATH = r"E:\Dartmouth College Dropbox\Dartmouth College Dropbox\Alexander Carney\instrument_drivers"
+
 # Serial numbers for switches
-DRIVE_SWITCH_SERIAL = 34875
-READOUT_SWITCH_SERIAL = 35353
+DRIVE_SWITCH_SERIAL = 35353
+READOUT_SWITCH_SERIAL = 34875
+
+CAV_TO_YIG_SWITCH_SERIAL = 35096
+YIG_TO_CAV_SWITCH_SERIAL = 35095
 
 # Center frequency
 CENTER_FREQ = 6.0e9
@@ -48,10 +53,25 @@ VNA_BASE_DIR = "results_gui"
 VNA_N_AVG = 15  # For faster updates
 
 # Loop attenuation settings
-LOOP_ATT = 30
+LOOP_ATT = 17
 LOOP_ATT_BACK_OFFSET = 4.5
 
 # YIG drive - are we allowing the YIG to be readout?
 YIG_DRIVE_ATTEN_HIGH = 50
 YIG_DRIVE_ATTEN_LOW = 0
+
+
+MODE = "NR"  # "PT" or "NR"
+
+DRIVE_SWITCH_CONFIG = {
+    "CAVITY": 2,
+    "YIG": 4,
+    "MIXED": 3
+}
+
+READOUT_SWITCH_CONFIG = {
+    "CAVITY": 1,
+    "YIG": 2,
+    "MIXED": 3
+}
 

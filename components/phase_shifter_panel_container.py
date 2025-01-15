@@ -1,7 +1,8 @@
 # components/phase_shifter_panel_container.py
 import sys
-if "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers" not in sys.path:
-    sys.path.append("S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers")
+import config
+if config.DRIVERS_PATH not in sys.path:
+    sys.path.append(config.DRIVERS_PATH)
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 from config import config

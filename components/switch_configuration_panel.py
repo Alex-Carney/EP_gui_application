@@ -1,13 +1,16 @@
 # components/switch_configuration_panel.py
 import sys
-if "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers" not in sys.path:
-    sys.path.append("S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers")
+
+import config
+if config.DRIVERS_PATH not in sys.path:
+    sys.path.append(config.DRIVERS_PATH)
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
 from PyQt5.QtCore import pyqtSignal
 import config
 from microwave_switch import MicrowaveSwitchController
 from LDA import Vaunix_LDA
+
 
 class SwitchConfigurationPanel(QWidget):
     configuration_changed = pyqtSignal(str)  # Signal to emit when configuration changes
@@ -61,6 +64,10 @@ class SwitchConfigurationPanel(QWidget):
         self.yig_button.clicked.connect(lambda: self.set_configuration("YIG Readout Only"))
         layout.addWidget(self.yig_button)
 
+        self.mixed_button = QPushButton("Mixed Readout")
+        self.mixed_button.clicked.connect(lambda: self.set_configuration("Mixed Readout"))
+        layout.addWidget(self.mixed_button)
+
         self.status_label = QLabel("Current Configuration: Normal Operation")
         layout.addWidget(self.status_label)
 
@@ -96,10 +103,31 @@ class SwitchConfigurationPanel(QWidget):
             if self.normal_yig_feedback_atten is not None:
                 self.attenuator_container.set_value("yig_att", self.normal_yig_feedback_atten)
 
-    def set_both_switches(self, port):
+    def set_drive_switch(self, mode: str):
+        """
+        :param mode: str | Can be CAVITY, YIG, MIXED
+        """
         try:
+            port = config.DRIVE_SWITCH_CONFIG[mode]
             self.switch_controller.set_active_port(port, config.DRIVE_SWITCH_SERIAL)
+        except Exception as e:
+            print(f"Error setting drive switch: {e}")
+
+    def set_readout_switch(self, mode: str):
+        """
+        :param mode: str | Can be CAVITY, YIG, MIXED
+        """
+        try:
+            port = config.READOUT_SWITCH_CONFIG[mode]
             self.switch_controller.set_active_port(port, config.READOUT_SWITCH_SERIAL)
+        except Exception as e:
+            print(f"Error setting readout switch: {e}")
+
+    def toggle_loop_coupling(self, turn_on):
+        port = 2 if turn_on else 1
+        try:
+            self.switch_controller.set_active_port(port, config.CAV_TO_YIG_SWITCH_SERIAL)
+            self.switch_controller.set_active_port(port, config.YIG_TO_CAV_SWITCH_SERIAL)
         except Exception as e:
             print(f"Error setting switches: {e}")
 
@@ -110,13 +138,38 @@ class SwitchConfigurationPanel(QWidget):
         LOOP_ATT = config.LOOP_ATT
         self.loop_atten.attenuation(LOOP_ATT)
         self.loop_atten_back.attenuation(LOOP_ATT + config.LOOP_ATT_BACK_OFFSET)
+
         self.yig_drive_atten.attenuation(config.YIG_DRIVE_ATTEN_HIGH)
 
-        self.set_both_switches(1)
+        self.set_drive_switch("CAVITY")
+        self.set_readout_switch("CAVITY")
+        # enable coupling
+        self.toggle_loop_coupling(True)
         self.status_label.setText("Current Configuration: Normal Operation")
         self.configuration_changed.emit("Normal Operation")
 
         # Now that we are in normal operation, we can store normal values again
+        # to capture any changes made.
+        self.store_normal_values()
+
+    def set_mixed_operation(self):
+        self.restore_normal_values()
+
+        LOOP_ATT = config.LOOP_ATT
+        self.loop_atten.attenuation(LOOP_ATT)
+        self.loop_atten_back.attenuation(LOOP_ATT + config.LOOP_ATT_BACK_OFFSET)
+
+        self.yig_drive_atten.attenuation(config.YIG_DRIVE_ATTEN_HIGH)
+
+        self.set_drive_switch("MIXED")
+        self.set_readout_switch("MIXED")
+
+        # enable coupling
+        self.toggle_loop_coupling(True)
+        self.status_label.setText("Current Configuration: Mixed Readout")
+        self.configuration_changed.emit("Mixed Readout")
+
+        # Now that we are in normal (mixed is a normal) operation, we can store normal values again
         # to capture any changes made.
         self.store_normal_values()
 
@@ -127,7 +180,7 @@ class SwitchConfigurationPanel(QWidget):
 
         # TODO: SWITCH ON CURRENT MODE
 
-        if self.current_mode == "Normal Operation":
+        if self.current_mode == "Normal Operation" or self.current_mode == "Mixed Readout":
             self.store_normal_values()
         else:
             # Coming from YIG or Cavity mode:
@@ -146,7 +199,9 @@ class SwitchConfigurationPanel(QWidget):
             print('turning off yig')
             self.attenuator_container.set_value("yig_att", 50)
 
-        self.set_both_switches(1)
+        self.set_drive_switch("CAVITY")
+        self.set_readout_switch("CAVITY")
+        self.toggle_loop_coupling(False)
         self.status_label.setText("Current Configuration: Cavity Readout Only")
         self.configuration_changed.emit("Cavity Readout Only")
 
@@ -155,10 +210,9 @@ class SwitchConfigurationPanel(QWidget):
         # If we are currently in normal mode, we have baseline normal values
         # If we are in Cavity mode, restore normal first, then set YIG
 
-
         # TODO: SWITCH ON CURRENT MODE
 
-        if self.current_mode == "Normal Operation":
+        if self.current_mode == "Normal Operation" or self.current_mode == "Mixed Readout":
             self.store_normal_values()
         else:
             # Coming from Cavity or YIG:
@@ -175,7 +229,10 @@ class SwitchConfigurationPanel(QWidget):
             print('turning off cavity')
             self.attenuator_container.set_value("cavity_att", 50)
 
-        self.set_both_switches(2)
+        self.set_drive_switch("YIG")
+        self.set_readout_switch("YIG")
+
+        self.toggle_loop_coupling(False)
         self.status_label.setText("Current Configuration: YIG Readout Only")
         self.configuration_changed.emit("YIG Readout Only")
 
@@ -193,6 +250,9 @@ class SwitchConfigurationPanel(QWidget):
         elif configuration_name == "YIG Readout Only":
             # Switching to YIG from either normal or cavity
             self.set_yig_readout()
+        elif configuration_name == "Mixed Readout":
+            # Switching to mixed mode
+            self.set_mixed_operation()
         else:
             print(f"Unknown configuration: {configuration_name}")
 

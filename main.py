@@ -1,7 +1,9 @@
 # main.py
 import sys
-if "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers" not in sys.path:
-    sys.path.append("S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers")
+
+import config
+if config.DRIVERS_PATH not in sys.path:
+    sys.path.append(config.DRIVERS_PATH)
 
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QScrollArea
@@ -16,11 +18,17 @@ from components import (
     AttenuatorPanelContainer,
     VNAControlPanel,
     ConfigPanel,
-    SweepControlPanel  
+    SweepControlPanel
 )
+
 
 class MainApplication(QMainWindow):
     def __init__(self):
+        """
+        Initialize the main application window.
+
+        :param mode: str - The mode of operation, either 'PT' or 'NR'.
+        """
         super().__init__()
         self.setWindowTitle("Combined GUI Application")
         self.setGeometry(100, 100, 1200, 800)
@@ -52,8 +60,6 @@ class MainApplication(QMainWindow):
         self.current_control_panel = CurrentControlPanel()
         left_layout.addWidget(self.current_control_panel)
 
-
-
         # Add Phase Shifter Panels
         self.phase_shifter_panel = PhaseShifterPanelContainer()
         left_layout.addWidget(self.phase_shifter_panel)
@@ -67,7 +73,9 @@ class MainApplication(QMainWindow):
         yig_feedback_atten = self.attenuator_panel.get_device("yig_att")
 
         # Add Switch Configuration Panel
-        self.switch_config_panel = SwitchConfigurationPanel(cavity_feedback_atten=cavity_feedback_atten, yig_feedback_atten=yig_feedback_atten, attenuator_container=self.attenuator_panel)
+        self.switch_config_panel = SwitchConfigurationPanel(cavity_feedback_atten=cavity_feedback_atten,
+                                                            yig_feedback_atten=yig_feedback_atten,
+                                                            attenuator_container=self.attenuator_panel)
         left_layout.addWidget(self.switch_config_panel)
 
         # Add the ConfigPanel
@@ -103,12 +111,14 @@ class MainApplication(QMainWindow):
         self.vna_control_panel.closeEvent(event)
         super().closeEvent(event)
 
+
 # Run the application
 def main():
     app = QApplication(sys.argv)
     window = MainApplication()
     window.show()
     sys.exit(app.exec_())
+
 
 if __name__ == '__main__':
     main()

@@ -8,10 +8,11 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import QTimer
 
+import config
+
 # Add driver path if necessary
-drivers_path = "S:\\fitzlab\\code\\QM_fitzlab\\instrument_drivers"
-if drivers_path not in sys.path:
-    sys.path.append(drivers_path)
+if config.DRIVERS_PATH not in sys.path:
+    sys.path.append(config.DRIVERS_PATH)
 
 from CS580 import CS580
 
