@@ -66,9 +66,14 @@ class VectorNetworkAnalyzer:
 
         phase = signal.detrend(np.unwrap(np.angle(I + 1j * Q)))
         amp = np.sqrt(I ** 2 + Q ** 2)
+
+        # amp_combined = ( I_1 + c_1 * I_2 ) ** 2 + ( Q_1 + c_2 * Q_2 ) ** 2
+        #
+        # alpha1 = I_1 + 1j * Q_1
+
         power_dbm = 10 * np.log10(((amp ** 2) * 1000) / 50) + self.att_into_qm_box
 
-        return full_freqs, power_dbm, phase
+        return full_freqs, power_dbm, phase, I, Q
 
     def _run_qua_program(self, freqs, f_min: float, f_max: float, df: float) -> (np.ndarray, np.ndarray):
         with program() as resonator_spec:
@@ -108,6 +113,10 @@ class VectorNetworkAnalyzer:
         self.lo.set_output(0)
         self.lo.close()
         self.qm.close()
+
+    def set_lo_power(self, power):
+        self.lo_power = power
+        self.lo.set_level(power)
 
     def close(self):
         self.turn_off()

@@ -2,7 +2,8 @@
 
 import threading
 import numpy as np
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit, QPushButton, QStatusBar, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit, QPushButton, QStatusBar, \
+    QMessageBox, QFileDialog
 from PyQt5.QtCore import QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -11,15 +12,20 @@ import config
 from vna.vna_instrument import VectorNetworkAnalyzer
 from lmfit.models import LorentzianModel
 import lmfit
+import time
+import math
 
 
 class VNAControlPanel(QWidget):
-    def __init__(self, voltage_control_panel, parent=None):
+    def __init__(self, voltage_control_panel, switch_config_panel, parent=None):
         super().__init__(parent)
         self.vna = None  # Will be initialized later
 
         # Reference to voltage control panel
         self.voltage_control_panel = voltage_control_panel
+
+        # Reference to switch config panel
+        self.switch_config_panel = switch_config_panel
 
         # Baseline data
         self.baseline_power = None
@@ -85,6 +91,12 @@ class VNAControlPanel(QWidget):
         control_layout.addWidget(self.df_label, 3, 0)
         control_layout.addWidget(self.df_input, 3, 1)
         control_layout.addWidget(self.store_thru_button, 4, 0, 1, 2)
+
+        # Add c1 label and text input
+        # self.c1_label = QLabel("c1 Value:")
+        # self.c1_input = QLineEdit("1+1j")  # Default to 1.0
+        # control_layout.addWidget(self.c1_label, 5, 0)
+        # control_layout.addWidget(self.c1_input, 5, 1)
 
         main_layout.addLayout(control_layout)
 
@@ -152,7 +164,42 @@ class VNAControlPanel(QWidget):
 
     def update_plot_thread(self):
         with self.vna_lock:
-            self.collect_data_sync()
+            if self.current_configuration != "Combined Mode":
+                self.collect_data_sync()
+            else:
+                print('IN COMBINED MODE, SO DOING 2 SWEEPS')
+
+                self.switch_config_panel.restore_normal_values()
+                self.switch_config_panel.toggle_loop_coupling(True)
+
+                self.switch_config_panel.set_normal_operation_silent()
+                time.sleep(0.05)
+                freqs_normal, pwr_dbm_normal, I1, Q1 = self._collect_single_trace()
+
+                self.switch_config_panel.set_nr_mode_silent()
+                time.sleep(0.05)
+                freqs_nr, pwr_dbm_nr, I2, Q2 = self._collect_single_trace()
+
+                self.switch_config_panel.store_normal_values()
+
+                try:
+                    c1 = complex(self.c1_input.text())  # e.g. "1+1j" -> (1+1j)
+                except ValueError:
+                    # Handle invalid input
+                    print("\n\n\n Invalid c1 value, defaulting to 1.0 \n\n\n")
+                    c1 = 1
+
+                a = I1 + 1j * Q1
+                b = c1 * (I2 + 1j * Q2)
+
+                amp = np.abs(a + b) ** 2
+
+                att_into_qm_box = float(eval(self.att_input.text()))
+                power_dbm_combined = 10 * np.log10(((amp ** 2) * 1000) / 50) + att_into_qm_box
+
+                # store these in self
+                self.freqs = freqs_normal  # or whichever freq axis you want
+                self.power_dbm = power_dbm_combined
 
         # Now, update the plot in the main thread
         self.update_plot_canvas()
@@ -183,7 +230,7 @@ class VNAControlPanel(QWidget):
                     # Extract fitted parameters
                     out = peak['fit_result']
                     center = out.params['lz_center'].value  # Peak frequency (GHz)
-                    sigma = out.params['lz_sigma'].value    # Half of FWHM (GHz)
+                    sigma = out.params['lz_sigma'].value  # Half of FWHM (GHz)
                     center_uncertainty = out.params['lz_center'].stderr
                     sigma_uncertainty = out.params['lz_sigma'].stderr
 
@@ -226,7 +273,8 @@ class VNAControlPanel(QWidget):
                         fwhm_annotation += f" ± {fwhm_uncertainty_mhz:.6f} MHz"
                     self.ax1.annotate(
                         fwhm_annotation,
-                        ((left_freq + right_freq) / 2, height), textcoords="offset points", xytext=(0, -20), ha='center', color='blue'
+                        ((left_freq + right_freq) / 2, height), textcoords="offset points", xytext=(0, -20),
+                        ha='center', color='blue'
                     )
 
                     # Update omega_Y, kappa_Y, omega_C, kappa_C depending on configuration
@@ -234,12 +282,12 @@ class VNAControlPanel(QWidget):
                         self.omega_Y = center
                         self.kappa_Y = fwhm
                         self.omega_y_label.setText(f"ω_Y = {center:.6f} GHz")
-                        self.kappa_y_label.setText(f"κ_Y = {fwhm*1e3:.3f} MHz")
+                        self.kappa_y_label.setText(f"κ_Y = {fwhm * 1e3:.3f} MHz")
                     elif self.current_configuration == "Cavity Readout Only":
                         self.omega_C = center
                         self.kappa_C = fwhm
                         self.omega_c_label.setText(f"ω_C = {center:.6f} GHz")
-                        self.kappa_c_label.setText(f"κ_C = {fwhm*1e3:.3f} MHz")
+                        self.kappa_c_label.setText(f"κ_C = {fwhm * 1e3:.3f} MHz")
 
                     # Plot the Lorentzian fit
                     x_fit_ghz = peak['x_fit_ghz']
@@ -247,13 +295,12 @@ class VNAControlPanel(QWidget):
                     y_fit_db = 10 * np.log10(y_fit_linear)
                     self.ax1.plot(x_fit_ghz, y_fit_db, 'm--', label='Lorentzian Fit')
 
-
         # Update Delta and K
         if self.omega_Y is not None and self.omega_C is not None:
             delta = self.omega_C - self.omega_Y
             K = self.kappa_C - self.kappa_Y
-            self.delta_label.setText(f"Δ = {delta*1e3:.3f} MHz")
-            self.K_label.setText(f"K = {K*1e3:.3f} MHz")
+            self.delta_label.setText(f"Δ = {delta * 1e3:.3f} MHz")
+            self.K_label.setText(f"K = {K * 1e3:.3f} MHz")
         else:
             self.delta_label.setText("Δ = N/A")
             self.K_label.setText("K = N/A")
@@ -267,9 +314,9 @@ class VNAControlPanel(QWidget):
         # Refresh canvas
         self.canvas.draw()
 
-
     def initialize_vna(self, center_freq, span_freq, att, del_f):
-        print(f"Initializing VNA with center_freq={center_freq} Hz, span_freq={span_freq} Hz, att={att}, del_f={del_f} Hz")
+        print(
+            f"Initializing VNA with center_freq={center_freq} Hz, span_freq={span_freq} Hz, att={att}, del_f={del_f} Hz")
         # Initialize VNA object
         self.vna = VectorNetworkAnalyzer(
             center_freq=center_freq,
@@ -313,7 +360,7 @@ class VNAControlPanel(QWidget):
     def on_configuration_changed(self, configuration_name):
         # Update current configuration
         self.current_configuration = configuration_name
-        if configuration_name == "Normal Operation":
+        if configuration_name == "Normal Operation" or configuration_name == "NR Mode" or configuration_name == "Combined Mode":
             self.num_peaks_to_find = 0
         else:
             self.num_peaks_to_find = 1
@@ -362,9 +409,6 @@ class VNAControlPanel(QWidget):
 
         print(f"Data (with metadata) saved to {filename}")
 
-
-
-
     def collect_data_sync(self):
         # Collect data synchronously
         # No need to lock here; the calling method should handle locking
@@ -392,7 +436,7 @@ class VNAControlPanel(QWidget):
         self.span_freq_hz = span_freq
 
         # Get new trace from VNA
-        freqs, power_dbm, _ = self.vna.get_single_trace()
+        freqs, power_dbm, _, _, _ = self.vna.get_single_trace()
 
         # Subtract baseline if available
         if self.baseline_power is not None:
@@ -402,12 +446,71 @@ class VNAControlPanel(QWidget):
         self.freqs = freqs
         self.power_dbm = power_dbm
 
+    def _collect_single_trace(self):
+        """
+        Helper method that does one synchronous read
+        without changing any mode or config. Just calls
+        vna.get_single_trace(). Possibly does baseline sub.
+        """
+        cfreq = float(eval(self.center_freq_input.text())) * 1e9
+        span = float(eval(self.span_freq_input.text())) * 1e6
+        att = float(eval(self.att_input.text()))
+        delf = float(eval(self.df_input.text())) * 1e6
+
+        # update vna settings
+        if self.vna is None:
+            self.initialize_vna(cfreq, span, att, delf)
+        else:
+            self.vna.set_center_frequency(cfreq)
+            self.vna.set_span_frequency(span)
+            self.vna.set_attenuation(att)
+            self.vna.set_del_f(delf)
+
+        freqs, pwr_dbm, _, I, Q = self.vna.get_single_trace()
+        if self.baseline_power is not None:
+            pwr_dbm = pwr_dbm - self.baseline_power
+
+        return freqs, pwr_dbm, I, Q
+
     def get_current_trace(self):
         with self.vna_lock:
-            # Collect data synchronously
-            self.collect_data_sync()
-            return self.freqs, self.power_dbm
-        
+            if self.current_configuration != "Combined Mode":
+                # Collect data synchronously
+                self.collect_data_sync()
+                return self.freqs, self.power_dbm
+            else:
+                print('IN COMBINED MODE, SO DOING 2 SWEEPS  ')
+                # COMBINED MODE
+                # 1) Temporarily tell switch config to do normal
+                self.switch_config_panel.set_configuration("Normal Operation")
+                time.sleep(0.1)
+                # measure
+                freqs_normal, pwr_dbm_normal = self._collect_single_trace()
+
+                # 2) Temporarily tell switch config to do NR Mode
+                self.switch_config_panel.set_configuration("NR Mode")
+                time.sleep(0.1)
+                freqs_nr, pwr_dbm_nr = self._collect_single_trace()
+
+                # Both sweeps should have same frequency axis if done correctly
+                # Convert both to linear
+                lin_normal = 10 ** (pwr_dbm_normal / 10.0)
+                lin_nr = 10 ** (pwr_dbm_nr / 10.0)
+
+                # sum in linear
+                lin_sum = lin_normal + lin_nr
+
+                # convert back to dB
+                pwr_dbm_combined = 10 * np.log10(lin_sum)
+
+                # store these in self
+                self.freqs = freqs_normal  # or whichever freq axis you want
+                self.power_dbm = pwr_dbm_combined
+
+                # *optionally* store the "intermediate" traces somewhere if you want
+                # but for the final return:
+                return self.freqs, self.power_dbm
+
     def find_and_fit_peaks(self, freqs, power_dbm):
         """
         Find peaks using scipy, pick the top peak, and fit it with a Lorentzian using lmfit.
@@ -417,7 +520,7 @@ class VNAControlPanel(QWidget):
         peaks_info = []
 
         # Convert dB to linear for initial analysis
-        power_linear = 10**(power_dbm / 10)
+        power_linear = 10 ** (power_dbm / 10)
 
         prominence = 0.1  # Adjust as needed
         peaks, properties = find_peaks(power_dbm, prominence=prominence)
@@ -433,7 +536,7 @@ class VNAControlPanel(QWidget):
 
         # Define sigma for Gaussian weighting (for scoring)
         sigma = self.span_freq_hz / 4  # Adjust as needed
-        distance_weighting = np.exp(-(distances**2) / (2 * sigma**2))
+        distance_weighting = np.exp(-(distances ** 2) / (2 * sigma ** 2))
 
         # Compute combined score
         scores = prominences * distance_weighting
@@ -458,7 +561,7 @@ class VNAControlPanel(QWidget):
             peak_power_db = power_dbm[peak_idx]
             fwhm_samples = widths[i]
             # Convert sample width to frequency width
-            freq_step_hz = (freqs[-1] - freqs[0]) / (len(freqs)-1)
+            freq_step_hz = (freqs[-1] - freqs[0]) / (len(freqs) - 1)
             fwhm_hz = fwhm_samples * freq_step_hz
             fwhm_ghz = fwhm_hz / 1e9
 
@@ -468,8 +571,8 @@ class VNAControlPanel(QWidget):
             right_fit_freq_ghz = peak_freq_ghz + fit_range_factor * fwhm_ghz
 
             # Extract the fitting region
-            fit_mask = (freqs/1e9 >= left_fit_freq_ghz) & (freqs/1e9 <= right_fit_freq_ghz)
-            x_fit_ghz = freqs[fit_mask]/1e9
+            fit_mask = (freqs / 1e9 >= left_fit_freq_ghz) & (freqs / 1e9 <= right_fit_freq_ghz)
+            x_fit_ghz = freqs[fit_mask] / 1e9
             y_fit_linear = power_linear[fit_mask]
 
             if len(x_fit_ghz) < 5:
@@ -513,4 +616,3 @@ class VNAControlPanel(QWidget):
             })
 
         return peaks_info
-
