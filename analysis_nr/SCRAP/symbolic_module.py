@@ -31,6 +31,10 @@ class ModelParams:
     readout_vector: np.ndarray
     phi_val: float
 
+    def __str__(self):
+        return (f"ModelParams(J={self.J_val}, cavity_freq={self.cavity_freq}, "
+                f"omega_y={self.w_y}, gamma_vec={self.gamma_vec})")
+
 
 def setup_symbolic_equations() -> ModelSymbolics:
     """
@@ -250,32 +254,36 @@ if __name__ == "__main__":
     symbols_dict = setup_symbolic_equations()
 
     # Define NREP Params
-    J_value = .1  # GHz
+    J_value = .0085  # GHz
     params = ModelParams(
         J_val=J_value,
         g_val=0,  # Difference between gamma values
-        cavity_freq=6.0,  # GHz
-        w_y=6.0,  # GHz
-        gamma_vec=np.array([0.04, 0.04]),  # Initial gamma values
+        cavity_freq=6.0063363531479474,  # GHz
+        w_y=5.98905,  # GHz
+        gamma_vec=np.array([0.00096165, 0.00093425]),  # Initial gamma values
         drive_vector=np.array([1, 0]),
-        readout_vector=np.array([1, 0]),
-        phi_val=0,  # Phase difference
+        readout_vector=np.array([0, 1]),
+        phi_val=np.pi,  # Phase difference
     )
 
     nr_ep_ss_eqn = get_steady_state_response_transmission(symbols_dict, params)
 
     # Define LO frequencies around the cavity resonance
-    lo_freqs = np.linspace(params.cavity_freq - 0.5, params.cavity_freq + 0.5, 1000)
+    mean_freq = (params.cavity_freq + params.w_y) / 2
+    lo_freqs = np.linspace(mean_freq - 0.006, mean_freq + 0.006, 1000)
 
     # Compute photon numbers
     photon_numbers = compute_photon_numbers_transmission(nr_ep_ss_eqn, lo_freqs)
+
+    photon_numbers = np.log10(photon_numbers)
+
 
     # Plot
     plt.figure(figsize=(8, 5))
     plt.plot(lo_freqs, photon_numbers)
     plt.xlabel('LO Frequency (GHz)')
     plt.ylabel('Photon Number')
-    plt.title('Photon Number vs LO Frequency')
+    plt.title(f'Photon Number vs LO Frequency at Detuning = {params.cavity_freq - params.w_y} GHz')
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("photon_number_vs_LO_frequency.png", dpi=400)

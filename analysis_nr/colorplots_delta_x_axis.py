@@ -15,9 +15,14 @@ This script:
      for each current.
   4. Uses the NR hybridized data and re-labels the X axis from current to Δ.
   5. Produces a color plot where X = Δ and Y = frequency.
-  6. Applies a double Lorentzian model to each NR trace to extract its peak centers,
-     and then plots an overlay scatter plot (with error bars) of the NR peak locations
-     versus Δ.
+  6. For each NR trace, uses a basic SciPy peak‐finding routine to get initial guesses.
+     • If only one peak is found, a single Lorentzian fit is performed and then a
+       double Lorentzian fit is also attempted (using that same guess for both peaks).
+       The two fits are compared via their reduced chi‐square and the better one is used.
+     • If two (or more) peaks are found, a double Lorentzian fit is performed
+       (using the two most prominent peaks as the initial guesses).
+       (No FWHM lines are plotted for the double Lorentzian fits.)
+  7. An overlay scatter plot is produced showing the NR peak locations versus Δ.
 
 No scattershot filtering is applied.
 """
@@ -38,8 +43,8 @@ SAVE_DPI = 300
 LABEL_FONT_SIZE = 14
 TICK_FONT_SIZE = 12
 
-# Set to True to enable extra debug plots (including individual trace plots with overlayed fits)
-DEBUG_MODE = True
+CAV_YIG_DEBUG = True
+NR_DEBUG = True
 
 
 # -----------------------------------------------------------------------------
@@ -73,7 +78,8 @@ def get_data_from_db(engine, experiment_id, readout_type, freq_min, freq_max, cu
     data = pd.read_sql_query(data_query, engine)
     if data.empty:
         return None, None, None, None
-    pivot_table = data.pivot_table(index="current", columns="frequency_hz", values="power_dBm", aggfunc="first")
+    pivot_table = data.pivot_table(index="current", columns="frequency_hz",
+                                   values="power_dBm", aggfunc="first")
     currents = pivot_table.index.values
     frequencies = pivot_table.columns.values
     power_grid = pivot_table.values
@@ -94,37 +100,38 @@ def single_lorentzian_fit(x, y, center_guess):
     try:
         result = model.fit(y, pars, x=x)
     except Exception as e:
-        print("Fit error:", e)
+        print("Single Lorentzian fit error:", e)
         return None
     return result
 
 
 def fit_trace(current_value, frequencies, power_dbm):
+    # For cavity and YIG traces
     freqs_ghz = frequencies / 1e9
     peaks, _ = find_peaks(power_dbm, prominence=0.1)
     if len(peaks) == 0:
         return {"current": current_value, "omega": np.nan, "omega_unc": np.nan,
-                "kappa": np.nan, "kappa_unc": np.nan, "fit_result": None, "x_fit": None}
+                "kappa": np.nan, "kappa_unc": np.nan, "fit_type": "single", "fit_result": None, "x_fit": None}
     peak_idx = peaks[0]
     center_guess = freqs_ghz[peak_idx]
     power_linear = 10 ** (power_dbm / 10)
     widths, _, _, _ = peak_widths(power_linear, [peak_idx], rel_height=0.5)
     if len(widths) == 0:
         return {"current": current_value, "omega": np.nan, "omega_unc": np.nan,
-                "kappa": np.nan, "kappa_unc": np.nan, "fit_result": None, "x_fit": None}
+                "kappa": np.nan, "kappa_unc": np.nan, "fit_type": "single", "fit_result": None, "x_fit": None}
     freq_step = (freqs_ghz[-1] - freqs_ghz[0]) / (len(freqs_ghz) - 1)
     fwhm_guess = widths[0] * freq_step
     fit_range = 5 * fwhm_guess
     mask = (freqs_ghz >= center_guess - fit_range) & (freqs_ghz <= center_guess + fit_range)
     if mask.sum() < 5:
         return {"current": current_value, "omega": np.nan, "omega_unc": np.nan,
-                "kappa": np.nan, "kappa_unc": np.nan, "fit_result": None, "x_fit": None}
+                "kappa": np.nan, "kappa_unc": np.nan, "fit_type": "single", "fit_result": None, "x_fit": x_fit}
     x_fit = freqs_ghz[mask]
     y_fit = 10 ** (power_dbm[mask] / 10)
     fit_result = single_lorentzian_fit(x_fit, y_fit, center_guess)
     if fit_result is None:
         return {"current": current_value, "omega": np.nan, "omega_unc": np.nan,
-                "kappa": np.nan, "kappa_unc": np.nan, "fit_result": None, "x_fit": x_fit}
+                "kappa": np.nan, "kappa_unc": np.nan, "fit_type": "single", "fit_result": None, "x_fit": x_fit}
     center = fit_result.params["lz_center"].value
     center_unc = fit_result.params["lz_center"].stderr if fit_result.params["lz_center"].stderr is not None else np.nan
     sigma = fit_result.params["lz_sigma"].value
@@ -132,7 +139,7 @@ def fit_trace(current_value, frequencies, power_dbm):
     fwhm = 2 * sigma
     fwhm_unc = 2 * sigma_unc if not np.isnan(sigma_unc) else np.nan
     return {"current": current_value, "omega": center, "omega_unc": center_unc,
-            "kappa": fwhm, "kappa_unc": fwhm_unc, "fit_result": fit_result, "x_fit": x_fit}
+            "kappa": fwhm, "kappa_unc": fwhm_unc, "fit_type": "single", "fit_result": fit_result, "x_fit": x_fit}
 
 
 def process_all_traces(power_grid, currents, frequencies):
@@ -159,85 +166,233 @@ def compute_delta(cavity_df, yig_df):
 
 
 # -----------------------------------------------------------------------------
-# Custom Double Lorentzian Fit for NR Traces
+# New NR Fitting Function using basic SciPy peak finding and dual fitting
 # -----------------------------------------------------------------------------
-def fit_double_lorentzian_NR(frequencies, power_dbm, center_freq_hz=None, span_freq_hz=None, peak_midpoint=None):
-    """
-    Fit the NR trace with a double Lorentzian model.
-    Frequencies are in Hz and converted to GHz.
-
-    Returns a dictionary with:
-      - 'fit_result': the lmfit result (or None)
-      - 'x_fit': the x-data (in GHz) used for fitting
-      - 'guess_centers': the two initial guess centers (in GHz)
-    """
-    if center_freq_hz is None:
-        center_freq_hz = (frequencies.min() + frequencies.max()) / 2
-    if span_freq_hz is None:
-        span_freq_hz = frequencies.max() - frequencies.min()
-    freqs_ghz = frequencies / 1e9
-    peaks, properties = find_peaks(power_dbm, prominence=0.1)
-    if len(peaks) == 0:
-        return None
-    prominences = properties["prominences"]
-    guess_freqs = freqs_ghz[peaks]
-    center_guess_ghz = center_freq_hz / 1e9
-    distances = abs(guess_freqs - center_guess_ghz)
-    sigma = (span_freq_hz / 1e9) / 4
-    distance_weighting = np.exp(-(distances ** 2) / (2 * sigma ** 2))
-    scores = prominences * distance_weighting
-    sorted_indices = np.argsort(scores)[::-1]
-    if len(peaks) >= 2:
-        desired_peaks = 2
-    else:
-        desired_peaks = 1
-    top_peaks = peaks[sorted_indices[:desired_peaks]]
-    if desired_peaks == 1:
-        guess_centers = [freqs_ghz[top_peaks[0]], freqs_ghz[top_peaks[0]] + 0.001]
-    else:
-        guess_centers = [freqs_ghz[top_peaks[0]], freqs_ghz[top_peaks[1]]]
-    pmin = min(guess_centers)
-    pmax = max(guess_centers)
-    fit_range_factor = 5
-    sigma_guess_value = (span_freq_hz / 1e9) * 0.001
-    left_fit = pmin - fit_range_factor * sigma_guess_value
-    right_fit = pmax + fit_range_factor * sigma_guess_value
-    mask = (freqs_ghz >= left_fit) & (freqs_ghz <= right_fit)
-    x_fit = freqs_ghz[mask]
-    y_fit_linear = 10 ** (power_dbm[mask] / 10)
+def double_lorentzian_fit_NR(x, y, guess1, guess2):
+    from lmfit.models import LorentzianModel
     lz1 = LorentzianModel(prefix="lz1_")
     lz2 = LorentzianModel(prefix="lz2_")
     mod = lz1 + lz2
-    max_height = y_fit_linear.max()
-    amp_guess = max_height * np.pi * sigma_guess_value
+    sigma_guess = 0.001
+    amp_guess = y.max() * np.pi * sigma_guess
     pars = mod.make_params()
-    if peak_midpoint is not None and len(guess_centers) == 2:
-        c1, c2 = sorted(guess_centers)
-        pars["lz1_center"].set(value=c1, min=x_fit.min(), max=peak_midpoint)
-        pars["lz2_center"].set(value=c2, min=peak_midpoint, max=x_fit.max())
-    else:
-        pars["lz1_center"].set(value=guess_centers[0], min=x_fit.min(), max=x_fit.max())
-        pars["lz2_center"].set(value=guess_centers[1], min=x_fit.min(), max=x_fit.max())
+    # Ensure the first guess is less than the second.
+    if guess1 > guess2:
+        guess1, guess2 = guess2, guess1
+    pars["lz1_center"].set(value=guess1, min=x.min(), max=guess2)
+    pars["lz2_center"].set(value=guess2, min=guess2, max=x.max())
     pars["lz1_amplitude"].set(value=amp_guess, min=0)
-    pars["lz1_sigma"].set(value=sigma_guess_value, min=1e-6)
+    pars["lz1_sigma"].set(value=sigma_guess, min=1e-6)
     pars["lz2_amplitude"].set(value=amp_guess, min=0)
-    pars["lz2_sigma"].set(value=sigma_guess_value, min=1e-6)
+    pars["lz2_sigma"].set(value=sigma_guess, min=1e-6)
     try:
-        out = mod.fit(y_fit_linear, pars, x=x_fit)
+        out = mod.fit(y, pars, x=x)
     except Exception as e:
         print("Double Lorentzian fit failed:", e)
-        out = None
-    return {"fit_result": out, "x_fit": x_fit, "guess_centers": guess_centers}
+        return None
+    return out
 
 
-# -----------------------------------------------------------------------------
-# Plotting Functions for NR Overlay and Debug
-# -----------------------------------------------------------------------------
-def plot_nr_peaks_only_vs_detuning(nr_power, nr_currents, nr_freqs, delta_df, output_folder, experiment_id, nr_freq_min, nr_freq_max):
+def fit_NR_trace(current_value, frequencies, power_dbm):
     """
-    For each NR trace, perform a double Lorentzian fit and plot the resulting peak centers
-    (with uncertainties) versus the detuning Δ (from delta_df). The resulting overlay plot
-    uses X = Δ (GHz) and Y = Peak Frequency (GHz) and sets the Y limits based solely on the data.
+    For an NR trace, use basic SciPy.find_peaks with specified parameters.
+      - If only one peak is found, perform a single Lorentzian fit.
+        ALSO perform a double Lorentzian fit using the same guess for both peaks.
+        Compare the fits (via redchi) and return the one with the lower value.
+      - If two or more peaks are found, take the two most prominent peaks and perform a double Lorentzian fit.
+    Returns a dictionary with:
+      - "current": current value
+      - "fit_type": "single" or "double"
+      - For single fit: "omega" and "omega_unc"
+      - For double fit: "peak1", "peak1_unc", "peak2", "peak2_unc"
+      - "fit_result": the chosen lmfit result (or None)
+      - "x_fit": the x-data (in GHz) used for fitting.
+      - Also returns the initial guesses as "peak1_guess" and "peak2_guess".
+    """
+    freqs_ghz = frequencies / 1e9
+    # Use basic peak-finding parameters:
+    peaks_indices, props = find_peaks(power_dbm, height=-30, prominence=0.02, distance=15)
+    if len(peaks_indices) == 0:
+        return {"current": current_value, "fit_type": None, "fit_result": None, "x_fit": None}
+    elif len(peaks_indices) == 1:
+        # Compute single fit:
+        center_guess = freqs_ghz[peaks_indices[0]]
+        power_linear = 10 ** (power_dbm / 10)
+        single_fit = single_lorentzian_fit(freqs_ghz, power_linear, center_guess)
+        # ALSO attempt a double fit using the same guess for both peaks:
+        double_fit = double_lorentzian_fit_NR(freqs_ghz, power_linear, center_guess, center_guess + 0.001)
+        # Compare the reduced chi-square (redchi) if both fits succeeded.
+        # If double_fit is None, use single_fit.
+        if double_fit is None or single_fit is None:
+            chosen = single_fit if single_fit is not None else double_fit
+            chosen_type = "single" if single_fit is not None else "double"
+        else:
+            # Use redchi to compare fits:
+            if hasattr(double_fit, "redchi") and hasattr(single_fit, "redchi"):
+                if double_fit.redchi < single_fit.redchi:
+                    chosen = double_fit
+                    chosen_type = "double"
+                else:
+                    chosen = single_fit
+                    chosen_type = "single"
+            else:
+                # Fall back to single if redchi is not available
+                chosen = single_fit
+                chosen_type = "single"
+        if chosen_type == "single":
+            center = chosen.params["lz_center"].value
+            center_unc = chosen.params["lz_center"].stderr if chosen.params["lz_center"].stderr is not None else np.nan
+            return {"current": current_value, "fit_type": "single", "omega": center, "omega_unc": center_unc,
+                    "fit_result": chosen, "x_fit": freqs_ghz, "peak1_guess": center_guess, "peak2_guess": None}
+        else:
+            peak1 = chosen.params["lz1_center"].value
+            peak1_unc = chosen.params["lz1_center"].stderr if chosen.params["lz1_center"].stderr is not None else np.nan
+            peak2 = chosen.params["lz2_center"].value
+            peak2_unc = chosen.params["lz2_center"].stderr if chosen.params["lz2_center"].stderr is not None else np.nan
+            return {"current": current_value, "fit_type": "double",
+                    "peak1": peak1, "peak1_unc": peak1_unc,
+                    "peak2": peak2, "peak2_unc": peak2_unc,
+                    "fit_result": chosen, "x_fit": freqs_ghz,
+                    "peak1_guess": center_guess, "peak2_guess": center_guess + 0.001}
+    else:
+        # If two or more peaks are found, take the two with highest prominence.
+        prominences = props["prominences"]
+        sorted_idx = np.argsort(prominences)[::-1]
+        best_two = peaks_indices[sorted_idx[:2]]
+        best_two = np.sort(best_two)
+        guess1 = freqs_ghz[best_two[0]]
+        guess2 = freqs_ghz[best_two[1]]
+        power_linear = 10 ** (power_dbm / 10)
+        fit_result = double_lorentzian_fit_NR(freqs_ghz, power_linear, guess1, guess2)
+        if fit_result is None:
+            return {"current": current_value, "fit_type": "single", "omega": guess1, "omega_unc": np.nan,
+                    "fit_result": None, "x_fit": freqs_ghz}
+        peak1 = fit_result.params["lz1_center"].value
+        peak1_unc = fit_result.params["lz1_center"].stderr if fit_result.params[
+                                                                  "lz1_center"].stderr is not None else np.nan
+        peak2 = fit_result.params["lz2_center"].value
+        peak2_unc = fit_result.params["lz2_center"].stderr if fit_result.params[
+                                                                  "lz2_center"].stderr is not None else np.nan
+        return {"current": current_value, "fit_type": "double",
+                "peak1": peak1, "peak1_unc": peak1_unc,
+                "peak2": peak2, "peak2_unc": peak2_unc,
+                "fit_result": fit_result, "x_fit": freqs_ghz,
+                "peak1_guess": guess1, "peak2_guess": guess2}
+
+
+# -----------------------------------------------------------------------------
+# Plotting Functions
+# -----------------------------------------------------------------------------
+def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, folder, fit_data, detuning_val=None,
+                          order_prefix=""):
+    """
+    Plot an individual trace. For NR traces, if detuning_val is provided,
+    include it in the title and filename. The order_prefix (if provided) is
+    prepended to the file name for proper alphabetical sorting.
+    """
+    freqs_ghz = frequencies / 1e9
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(freqs_ghz, power_dbm, "b", label="Data")
+    if fit_data is not None and fit_data.get("fit_result") is not None:
+        fit_result = fit_data["fit_result"]
+        x_fit = fit_data.get("x_fit", np.linspace(freqs_ghz.min(), freqs_ghz.max(), 200))
+        best_fit_linear = fit_result.eval(x=x_fit)
+        best_fit_db = 10 * np.log10(best_fit_linear)
+        ax.plot(x_fit, best_fit_db, "m--", label="Lorentzian Fit")
+        if fit_data.get("fit_type") == "single":
+            center = fit_result.params["lz_center"].value
+            peak_val_db = 10 * np.log10(fit_result.eval(x=np.array([center])))
+            ax.plot(center, peak_val_db, "r*", markersize=10, label="Peak")
+            ax.annotate("Peak: " + str(center) + " GHz", (center, peak_val_db),
+                        textcoords="offset points", xytext=(0, 20), ha="center", color="red")
+        elif fit_data.get("fit_type") == "double":
+            try:
+                center1 = fit_result.params["lz1_center"].value
+                peak_val_db1 = 10 * np.log10(fit_result.eval(x=np.array([center1])))
+                ax.plot(center1, peak_val_db1, "r*", markersize=10, label="Peak 1")
+                ax.annotate("Peak 1: " + str(center1) + " GHz", (center1, peak_val_db1),
+                            textcoords="offset points", xytext=(0, 20), ha="center", color="red")
+            except Exception as e:
+                print("Error in double fit (peak1):", e)
+            try:
+                center2 = fit_result.params["lz2_center"].value
+                peak_val_db2 = 10 * np.log10(fit_result.eval(x=np.array([center2])))
+                ax.plot(center2, peak_val_db2, "y*", markersize=10, label="Peak 2")
+                ax.annotate("Peak 2: " + str(center2) + " GHz", (center2, peak_val_db2),
+                            textcoords="offset points", xytext=(0, 20), ha="center", color="orange")
+            except Exception as e:
+                print("Error in double fit (peak2):", e)
+    title = readout_type.capitalize() + " Trace at " + str(current_value) + " A"
+    file_suffix = f"{current_value}"
+    if readout_type.lower() == "nr" and detuning_val is not None:
+        title += ", Detuning = " + str(detuning_val) + " GHz"
+        file_suffix += "_Delta_" + str(detuning_val)
+    ax.set_xlabel("Frequency (GHz)", fontsize=LABEL_FONT_SIZE)
+    ax.set_ylabel("Power (dBm)", fontsize=LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=LABEL_FONT_SIZE)
+    ax.legend()
+    plt.tight_layout()
+    # Prepend order_prefix (if provided) to the file name so that Windows sorts the files in order.
+    plot_filename = f"{order_prefix}_{readout_type}_trace_current_{file_suffix}.png"
+    plot_path = os.path.join(folder, plot_filename)
+    plt.savefig(plot_path, dpi=SAVE_DPI)
+    plt.close(fig)
+    print("Saved individual", readout_type, "trace plot for current =", current_value, "A to", plot_path)
+
+
+def debug_plot_individual_traces(power_grid, currents, frequencies, readout_type, folder, detuning_data=None):
+    """
+    For each trace, if detuning_data is provided (for NR), look up the corresponding detuning value.
+    For NR traces, the traces are sorted by detuning (low to high) and an order index (zero-padded)
+    is prepended to the filename so that Windows sorts the files in the desired order.
+    """
+    debug_folder = os.path.join(folder, "debug", readout_type)
+    if not os.path.exists(debug_folder):
+        os.makedirs(debug_folder)
+
+    if readout_type.lower() == "nr" and detuning_data is not None:
+        # Build a list of (index, current, delta) for all NR traces with valid detuning
+        sorted_list = []
+        for i, cur in enumerate(currents):
+            try:
+                delta_val = float(detuning_data.loc[detuning_data["current"] == cur, "Delta"].iloc[0])
+                sorted_list.append((i, cur, delta_val))
+            except Exception as e:
+                print("Could not extract detuning for current", cur, ":", e)
+        # Sort the list by delta value (low to high)
+        sorted_list.sort(key=lambda x: x[2])
+        # Loop over the sorted list and assign a zero-padded order prefix for each file name.
+        for order, (i, cur, delta_val) in enumerate(sorted_list, start=1):
+            trace = power_grid[i, :]
+            fit_data = fit_NR_trace(cur, frequencies, trace)
+            # Use the extracted delta_val for the plot title as well.
+            order_prefix = f"{order:03d}_"
+            plot_individual_trace(cur, frequencies, trace, readout_type, debug_folder,
+                                  fit_data, detuning_val=delta_val, order_prefix=order_prefix)
+    else:
+        # For non-NR traces (or if no detuning data is provided) use the original order.
+        for i, current in enumerate(currents):
+            trace = power_grid[i, :]
+            if readout_type in ["cavity", "yig"]:
+                fit_data = fit_trace(current, frequencies, trace)
+                extra = None
+            else:
+                fit_data = fit_NR_trace(current, frequencies, trace)
+                extra = None
+                if detuning_data is not None:
+                    try:
+                        extra = float(detuning_data.loc[detuning_data["current"] == current, "Delta"].iloc[0])
+                    except Exception as e:
+                        print("Could not extract detuning for current", current, ":", e)
+            plot_individual_trace(current, frequencies, trace, readout_type, debug_folder,
+                                  fit_data, detuning_val=extra)
+
+
+
+def plot_nr_peaks_only_vs_detuning(nr_power, nr_currents, nr_freqs, delta_df, output_folder, experiment_id):
+    """
+    For each NR trace, use fit_NR_trace to extract peak locations (one or two)
+    and then plot these versus the detuning Δ (from delta_df). X = Δ (GHz) and Y = Peak Frequency (GHz)
     """
     delta_map = delta_df.set_index("current")["Delta"]
     detuning_list = []
@@ -247,27 +402,23 @@ def plot_nr_peaks_only_vs_detuning(nr_power, nr_currents, nr_freqs, delta_df, ou
         if current not in delta_map.index:
             continue
         delta_val = delta_map.loc[current]
-        trace = nr_power[i, :]
-        fit_data = fit_double_lorentzian_NR(nr_freqs, trace)
-        if fit_data is None or fit_data.get("fit_result") is None:
+        fit_data = fit_NR_trace(current, nr_freqs, nr_power[i, :])
+        if fit_data is None:
             continue
-        result = fit_data["fit_result"]
-        try:
-            center1 = result.params["lz1_center"].value
-            unc1 = result.params["lz1_center"].stderr if result.params["lz1_center"].stderr is not None else 0.0
+        if fit_data.get("fit_type") == "single":
+            peak = fit_data.get("omega")
+            unc = fit_data.get("omega_unc", 0.0)
             detuning_list.append(delta_val)
-            peak_list.append(center1)
-            peak_unc_list.append(unc1)
-        except Exception as e:
-            print("Error extracting peak 1 for current", current, ":", e)
-        try:
-            center2 = result.params["lz2_center"].value
-            unc2 = result.params["lz2_center"].stderr if result.params["lz2_center"].stderr is not None else 0.0
-            detuning_list.append(delta_val)
-            peak_list.append(center2)
-            peak_unc_list.append(unc2)
-        except Exception as e:
-            print("Error extracting peak 2 for current", current, ":", e)
+            peak_list.append(peak)
+            peak_unc_list.append(unc)
+        elif fit_data.get("fit_type") == "double":
+            peak1 = fit_data.get("peak1")
+            unc1 = fit_data.get("peak1_unc", 0.0)
+            peak2 = fit_data.get("peak2")
+            unc2 = fit_data.get("peak2_unc", 0.0)
+            detuning_list.extend([delta_val, delta_val])
+            peak_list.extend([peak1, peak2])
+            peak_unc_list.extend([unc1, unc2])
     if len(peak_list) == 0:
         print("No NR peaks extracted for the overlay plot.")
         return
@@ -277,8 +428,9 @@ def plot_nr_peaks_only_vs_detuning(nr_power, nr_currents, nr_freqs, delta_df, ou
     ax.set_xlabel("Detuning Δ (GHz)", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Peak Frequency (GHz)", fontsize=LABEL_FONT_SIZE)
     ax.set_title("NR Peak Locations vs. Detuning", fontsize=LABEL_FONT_SIZE)
-    # Set y-limits based solely on the data (add a small margin)
-    ax.set_ylim(nr_freq_min, nr_freq_max)
+    y_min = min(peak_list)
+    y_max = max(peak_list)
+    ax.set_ylim(y_min, y_max)
     ax.grid(True)
     ax.legend()
     plt.tight_layout()
@@ -357,114 +509,6 @@ def plot_raw_colorplot(power_grid, currents, frequencies, experiment_id, setting
     print("Saved raw", readout_type.upper(), "color plot (current as X-axis) to", plot_path)
 
 
-def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, folder, fit_data):
-    freqs_ghz = frequencies / 1e9
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(freqs_ghz, power_dbm, "b", label="Data")
-    if fit_data is not None and fit_data.get("fit_result") is not None:
-        fit_result = fit_data["fit_result"]
-        if fit_data.get("x_fit") is not None:
-            x_fit = fit_data["x_fit"]
-        else:
-            x_fit = np.linspace(freqs_ghz.min(), freqs_ghz.max(), 200)
-        best_fit_linear = fit_result.eval(x=x_fit)
-        best_fit_db = 10 * np.log10(best_fit_linear)
-        ax.plot(x_fit, best_fit_db, "m--", label="Lorentzian Fit")
-        center = fit_result.params["lz_center"].value
-        peak_value_linear = fit_result.eval(x=np.array([center]))
-        peak_value_db = 10 * np.log10(peak_value_linear)
-        ax.plot(center, peak_value_db, "r*", markersize=10, label="Peak")
-        sigma = fit_result.params["lz_sigma"].value
-        fwhm = 2 * sigma
-        left = center - fwhm / 2
-        right = center + fwhm / 2
-        height = peak_value_db - 3
-        ax.hlines(height, left, right, color="green", linestyle="--", label="FWHM")
-        ax.annotate("Peak: " + str(center) + " GHz", (center, peak_value_db),
-                    textcoords="offset points", xytext=(0, 20), ha="center", color="red")
-        ax.annotate("FWHM: " + str(fwhm * 1e3) + " MHz", ((left + right) / 2, height),
-                    textcoords="offset points", xytext=(0, -20), ha="center", color="green")
-    ax.set_xlabel("Frequency (GHz)", fontsize=LABEL_FONT_SIZE)
-    ax.set_ylabel("Power (dBm)", fontsize=LABEL_FONT_SIZE)
-    ax.set_title(readout_type.capitalize() + " Trace at " + str(current_value) + " A", fontsize=LABEL_FONT_SIZE)
-    ax.legend()
-    plt.tight_layout()
-    plot_path = os.path.join(folder, f"{readout_type}_trace_current_{current_value}.png")
-    plt.savefig(plot_path, dpi=SAVE_DPI)
-    plt.close(fig)
-    print("Saved individual", readout_type, "trace plot for current =", current_value, "A to", plot_path)
-
-
-def debug_plot_individual_traces(power_grid, currents, frequencies, readout_type, folder):
-    debug_folder = os.path.join(folder, "debug", readout_type)
-    if not os.path.exists(debug_folder):
-        os.makedirs(debug_folder)
-    for i, current in enumerate(currents):
-        trace = power_grid[i, :]
-        fit_data = fit_trace(current, frequencies, trace)
-        plot_individual_trace(current, frequencies, trace, readout_type, debug_folder, fit_data)
-
-
-def debug_plot_individual_NR_traces(power_grid, currents, frequencies, folder):
-    """
-    Loop over each NR trace and plot an individual debug plot that shows the raw data,
-    the double Lorentzian fit, the two fitted peaks, and the FWHM lines for each peak.
-    """
-    debug_folder = os.path.join(folder, "debug", "nr")
-    if not os.path.exists(debug_folder):
-        os.makedirs(debug_folder)
-    for i, current in enumerate(currents):
-        trace = power_grid[i, :]
-        fit_data = fit_double_lorentzian_NR(frequencies, trace)
-        freqs_ghz = frequencies / 1e9
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot(freqs_ghz, trace, "b", label="NR Data")
-        if fit_data is not None and fit_data.get("fit_result") is not None:
-            fit_result = fit_data["fit_result"]
-            if fit_data.get("x_fit") is not None:
-                x_fit = fit_data["x_fit"]
-            else:
-                x_fit = np.linspace(freqs_ghz.min(), freqs_ghz.max(), 200)
-            best_fit_linear = fit_result.eval(x=x_fit)
-            best_fit_db = 10 * np.log10(best_fit_linear)
-            ax.plot(x_fit, best_fit_db, "m--", label="Double Lorentzian Fit")
-            try:
-                center1 = fit_result.params["lz1_center"].value
-                peak_val_lin1 = fit_result.eval(x=np.array([center1]))
-                peak_val_db1 = 10 * np.log10(peak_val_lin1)
-                ax.plot(center1, peak_val_db1, "r*", markersize=10, label="Peak 1")
-                sigma1 = fit_result.params["lz1_sigma"].value
-                fwhm1 = 2 * sigma1
-                left1 = center1 - fwhm1 / 2
-                right1 = center1 + fwhm1 / 2
-                height1 = peak_val_db1 - 3
-                # ax.hlines(height1, left1, right1, color="green", linestyle="--", label="FWHM 1")
-            except Exception as e:
-                print("Error extracting NR peak 1 for current", current, ":", e)
-            try:
-                center2 = fit_result.params["lz2_center"].value
-                peak_val_lin2 = fit_result.eval(x=np.array([center2]))
-                peak_val_db2 = 10 * np.log10(peak_val_lin2)
-                ax.plot(center2, peak_val_db2, "y*", markersize=10, label="Peak 2")
-                sigma2 = fit_result.params["lz2_sigma"].value
-                fwhm2 = 2 * sigma2
-                left2 = center2 - fwhm2 / 2
-                right2 = center2 + fwhm2 / 2
-                height2 = peak_val_db2 - 3
-                # ax.hlines(height2, left2, right2, color="green", linestyle="--", label="FWHM 2")
-            except Exception as e:
-                print("Error extracting NR peak 2 for current", current, ":", e)
-        ax.set_xlabel("Frequency (GHz)", fontsize=LABEL_FONT_SIZE)
-        ax.set_ylabel("Power (dBm)", fontsize=LABEL_FONT_SIZE)
-        ax.set_title("NR Trace at " + str(current) + " A", fontsize=LABEL_FONT_SIZE)
-        ax.legend()
-        plt.tight_layout()
-        plot_path = os.path.join(debug_folder, f"nr_trace_current_{current}.png")
-        plt.savefig(plot_path, dpi=SAVE_DPI)
-        plt.close(fig)
-        print("Saved debug NR trace with double fit for current =", current, "A to", plot_path)
-
-
 # -----------------------------------------------------------------------------
 # Main Routine
 # -----------------------------------------------------------------------------
@@ -504,14 +548,12 @@ def main():
     raw_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_NR_EP_raw")
     plot_raw_colorplot(nr_power, nr_currents, nr_freqs, experiment_id, nr_settings, raw_folder, readout_type="nr")
 
-    if DEBUG_MODE:
+    if CAV_YIG_DEBUG:
         debug_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_debug")
-        print("DEBUG MODE enabled: plotting individual cavity traces with Lorentzian fits...")
+        print("CAV_YIG_DEBUG MODE enabled: plotting individual cavity traces with Lorentzian fits...")
         debug_plot_individual_traces(cavity_power, cavity_currents, cavity_freqs, "cavity", debug_folder)
-        print("DEBUG MODE enabled: plotting individual YIG traces with Lorentzian fits...")
+        print("CAV_YIG_DEBUG MODE enabled: plotting individual YIG traces with Lorentzian fits...")
         debug_plot_individual_traces(yig_power, yig_currents, yig_freqs, "yig", debug_folder)
-        print("DEBUG MODE enabled: plotting individual NR traces with double Lorentzian fits...")
-        debug_plot_individual_NR_traces(nr_power, nr_currents, nr_freqs, debug_folder)
 
     print("Fitting cavity traces...")
     cavity_df = process_all_traces(cavity_power, cavity_currents, cavity_freqs)
@@ -520,6 +562,12 @@ def main():
     delta_df = compute_delta(cavity_df, yig_df)
     print("Computed detuning for each current.")
 
+    if NR_DEBUG:
+        debug_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_debug")
+        print(
+            "NR_DEBUG MODE enabled: plotting individual NR traces with new NR fitting (including detuning in title)...")
+        debug_plot_individual_traces(nr_power, nr_currents, nr_freqs, "nr", debug_folder, detuning_data=delta_df)
+
     output_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_NR_EP")
     plot_delta_colorplot(nr_power, nr_currents, nr_freqs, delta_df, experiment_id, nr_settings, output_folder)
 
@@ -527,8 +575,7 @@ def main():
     if not os.path.exists(overlay_folder):
         os.makedirs(overlay_folder)
     print("Plotting NR peak locations vs. Detuning overlay...")
-    plot_nr_peaks_only_vs_detuning(nr_power, nr_currents, nr_freqs, delta_df, overlay_folder, experiment_id,
-                                   colorplot_freq_min, colorplot_freq_max)
+    plot_nr_peaks_only_vs_detuning(nr_power, nr_currents, nr_freqs, delta_df, overlay_folder, experiment_id)
 
 
 if __name__ == "__main__":

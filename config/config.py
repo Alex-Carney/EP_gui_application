@@ -68,7 +68,7 @@ ATTENUATOR_DEVICES = [
 
 # VNA default values
 VNA_DEFAULT_CENTER_FREQ = 6.0e9
-VNA_DEFAULT_SPAN_FREQ = 100e6
+VNA_DEFAULT_SPAN_FREQ = 40e6
 VNA_DEFAULT_ATTENUATION = 20
 VNA_DEFAULT_DEL_F = 0.2e6
 
@@ -78,7 +78,7 @@ VNA_BASE_DIR = "results_gui"
 VNA_N_AVG = 15  # For faster updates
 
 # Loop attenuation settings
-LOOP_ATT = 3
+LOOP_ATT = 5
 LOOP_ATT_BACK_OFFSET = 4.5
 
 # YIG drive - are we allowing the YIG to be readout?

@@ -1,0 +1,26 @@
+{
+  "hailey_sunday": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "294962de-dd80-49c6-81b5-394ae97b5838",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.994e9,
+        "max": 6.002e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -99,
+      "max": 99
+    },
+    "db_path": "../../databases/NR_SUN_NITE_PPP_FINE.db"
+  }
+}
