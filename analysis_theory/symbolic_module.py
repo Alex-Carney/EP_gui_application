@@ -341,7 +341,7 @@ def setup_fast_transmission_function(drive=(1, 0), readout=(0, 1)):
 def compute_photon_numbers_fast(fast_func,
                                 J_val, w_c_val, w_y_val,
                                 gamma_c_val, gamma_y_val,
-                                phi_val, w_f_array,):
+                                phi_val, w_f_array):
     """
     Convenience function that calls the lambdified fast_func and returns
     |transmitted|^2 (photon number).

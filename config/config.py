@@ -78,7 +78,7 @@ VNA_BASE_DIR = "results_gui"
 VNA_N_AVG = 15  # For faster updates
 
 # Loop attenuation settings
-LOOP_ATT = 5
+LOOP_ATT = 7
 LOOP_ATT_BACK_OFFSET = 4.5
 
 # YIG drive - are we allowing the YIG to be readout?

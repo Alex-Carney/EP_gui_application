@@ -22,8 +22,92 @@
       "max": 99
     },
     "db_path": "../databases/NR_SUN_NITE_PPP_FINE.db",
-    "optimal_J": 0.008414,
-    "optimal_J_unc": 0.0001,
+    "optimal_J": 0.008420,
+    "optimal_J_unc": 0.000011,
     "simulated_vertical_offset": 10.5
+  },
+  "thursday_ovn": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "ab4c2e42-2d72-4d18-902c-7d555f2f1023",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.985e9,
+        "max": 6.004e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.007,
+      "max": -0.0048
+    },
+    "db_path": "../databases/NR_R_THURS_OVERNIGHT.db",
+    "optimal_J": 0.009420,
+    "optimal_J_unc": 0.000011,
+    "simulated_vertical_offset": 10.5,
+    "readout_type": "nr"
+  },
+  "hailey_friday": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "e4b2b4ed-0182-4abf-b3a5-d63f5e4b7ef3",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.993e9,
+        "max": 6.002e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.007,
+      "max": -0.00315
+    },
+    "db_path": "../databases/NR_R_FRI_OVN_HAILEY.db",
+    "optimal_J": 0.008218,
+    "optimal_J_unc": 2.4e-05,
+    "simulated_vertical_offset": 10.5,
+    "readout_type": "nr"
+  },
+  "hailey_friday_normal": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "e4b2b4ed-0182-4abf-b3a5-d63f5e4b7ef3",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.993e9,
+        "max": 6.002e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.007,
+      "max": -0.00315
+    },
+    "db_path": "../databases/NR_R_FRI_OVN_HAILEY.db",
+    "optimal_J": 0.008215,
+    "optimal_J_unc": 2.2e-05,
+    "simulated_vertical_offset": 10.5,
+    "readout_type": "normal"
   }
 }

@@ -5,7 +5,7 @@ from lmfit.models import LorentzianModel
 from typing import TypedDict, Union, Optional, Any
 from stages import Fitter
 
-OVERFITTING_AMPLITUDE_DIFFERENCE_THRESHOLD = 5  # dB
+OVERFITTING_AMPLITUDE_DIFFERENCE_THRESHOLD = 0.11  # dB
 
 
 class FitTraceResult(TypedDict):

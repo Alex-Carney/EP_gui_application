@@ -85,7 +85,8 @@ def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, b
         ax.plot(freqs_ghz, simulated_trace - simulated_vertical_offset, "g--", label="Theory")
         if simulated_trace_peak_idxs is not None:
             for idx in simulated_trace_peak_idxs:
-                ax.plot(freqs_ghz[idx], simulated_trace[idx] - simulated_vertical_offset, "g*", markersize=10, label="Theory Peak")
+                ax.plot(freqs_ghz[idx], simulated_trace[idx] - simulated_vertical_offset, "g*", markersize=10,
+                        label="Theory Peak")
                 ax.annotate(f"Simulated Peak: {freqs_ghz[idx]:.3f} GHz", (freqs_ghz[idx], simulated_trace[idx]),
                             textcoords="offset points", xytext=(0, 20), ha="center", color="green")
 
@@ -295,3 +296,76 @@ def plot_raw_colorplot(power_grid, currents, frequencies, experiment_id, setting
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
     print(f"Saved raw {readout_type.upper()} color plot (current as X-axis) to {plot_path}")
+
+
+def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_lower_max_array,
+                         optimal_J, detuning_array,
+                         peak_array, peak_unc_array, experiment_id, overlay_folder,
+                         theory_upper_min_array, theory_upper_max_array):
+    # Now create the plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Draw the theoretical shading first (behind the data)
+    # Lower branch
+    ax.fill_between(
+        theory_detuning_array,
+        theory_lower_min_array,
+        theory_lower_max_array,
+        color="blue",
+        alpha=0.2,
+        label="Theory Lower Branch"
+    )
+    # Upper branch
+    ax.fill_between(
+        theory_detuning_array,
+        theory_upper_min_array,
+        theory_upper_max_array,
+        color="green",
+        alpha=0.2,
+        label="Theory Upper Branch"
+    )
+
+    # Add a vertical line at 2*J
+    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+
+    # --------------------- Start Add Shading for Zone III ---------------------
+    # Add a shaded region that covers the largest 50 values of detuning (X points)
+    # This is to highlight the region where the NR peaks are most likely to be found
+    # First, determine the 50 largest detuning values from the experimental data.
+    if len(detuning_array) >= 50:
+        largest_50_detuning = np.sort(detuning_array)[-50:]
+    else:
+        largest_50_detuning = detuning_array
+
+    # Get the minimum and maximum values from these 50 points.
+    region_xmin = np.min(largest_50_detuning)
+    region_xmax = np.max(largest_50_detuning)
+
+    # Shade this region over the full y-axis.
+    ax.axvspan(region_xmin, region_xmax, color="orange", alpha=0.2, label="J Calculation Region")
+    # --------------------- End Add Shading for Zone III --------------------
+
+    # Plot the experimental data on top
+    ax.errorbar(detuning_array, peak_array,
+                yerr=peak_unc_array,
+                fmt="o", ecolor="red",
+                capsize=4, label="NR Hybridized Peaks (Data)",
+                markersize=2, color="black")
+
+    ax.set_xlabel("Detuning Δ (GHz)", fontsize=14)
+    ax.set_ylabel("Peak Frequency (GHz)", fontsize=14)
+    ax.set_title("NR Peak Locations vs. Detuning", fontsize=14)
+
+    # Tidy up plot ranges, in case some shading is out of range
+    y_min = min(peak_array.min(), theory_lower_min_array.min(), theory_upper_min_array.min())
+    y_max = max(peak_array.max(), theory_lower_max_array.max(), theory_upper_max_array.max())
+    ax.set_ylim(y_min, y_max)
+
+    ax.grid(True)
+    ax.legend(loc="best")
+    plt.tight_layout()
+
+    overlay_plot_path = os.path.join(overlay_folder, f"nr_peaks_overlay_exp_{experiment_id}.png")
+    plt.savefig(overlay_plot_path, dpi=300)
+    plt.close(fig)
+    print("Saved NR peaks overlay plot to", overlay_plot_path)

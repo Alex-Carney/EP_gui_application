@@ -22,5 +22,32 @@
       "max": 99
     },
     "db_path": "../../databases/NR_SUN_NITE_PPP_FINE.db"
+  },
+  "thursday_ovn": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "ab4c2e42-2d72-4d18-902c-7d555f2f1023",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.99e9,
+        "max": 6.002e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.0065,
+      "max": -0.0048
+    },
+    "db_path": "../../databases/NR_R_THURS_OVERNIGHT.db",
+    "optimal_J": 0.008420,
+    "optimal_J_unc": 0.000011,
+    "simulated_vertical_offset": 10.5
   }
 }
