@@ -12,7 +12,7 @@ import nr_fitting as nr_fit
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
 CONFIG_NAME = "hailey_friday_normal"
-CAV_YIG_DEBUG = False
+CAV_YIG_DEBUG = True
 NR_DEBUG = True
 
 # ------------------ TOP LEVEL CONFIGURATION ------------------
@@ -106,7 +106,8 @@ def main():
         all_peak_freqs = []
         start_time = time.time()
         drive = (1, 0)
-        readout = (0, 1) if readout_type == "nr" else (1, 0)
+        # NOTE: The readout configuration didn't actually change in the experiment...oops
+        readout = (0, 1) if readout_type == "nr" else (0, 1)
         fast_func = nr_sim.setup_fast_simulation(drive=drive, readout=readout)
         for shot in range(NUM_SIMULATION_SHOTS):
             result = nr_sim.run_single_theory_shot_fast(
@@ -147,7 +148,6 @@ def main():
         # ------------------ PLOT INDIVIDUAL TRACE (DEBUG) ------------------
         if NR_DEBUG:
             debug_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_debug")
-            print(f"Plotting NR trace for current {cur:.6f} A")
             order_prefix = f"{i + 1:03d}_"
             nr_plot.plot_individual_trace(
                 cur,

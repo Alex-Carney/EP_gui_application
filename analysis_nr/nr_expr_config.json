@@ -109,5 +109,36 @@
     "optimal_J_unc": 2.2e-05,
     "simulated_vertical_offset": 10.5,
     "readout_type": "normal"
+  },
+  "saturday": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "42712666-f5cc-482f-9514-cc9d976e020d",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.993e9,
+        "max": 6.002e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.007,
+      "max": -0.0006
+    },
+    "db_path": "../databases/NR_R_SAT_OVN_H.db",
+    "optimal_J": 0.008215,
+    "optimal_J_unc": 2.2e-05,
+    "simulated_vertical_offset": 10.5,
+    "readout_type": "nr"
   }
 }
+
+
+

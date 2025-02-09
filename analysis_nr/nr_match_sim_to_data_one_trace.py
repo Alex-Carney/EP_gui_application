@@ -55,9 +55,9 @@ def double_lorentzian_fit_NR(x, y, guess1, guess2):
 
 # ------------------ DATABASE & SIMULATION SETUP ------------------
 # Hardcoded values:
-db_path = r"C:\Users\AlexPHD\Dartmouth College Dropbox\Alexander Carney\darpa_alex_local\EP_gui_application\databases\NR_R_FRI_OVN_HAILEY.db"
-experiment_id = "e4b2b4ed-0182-4abf-b3a5-d63f5e4b7ef3"
-readout_type = "normal"
+db_path = r"C:\Users\parid\Dartmouth College Dropbox\Alexander Carney\darpa_alex_local\EP_gui_application\databases\NR_R_SAT_OVN_H.db"
+experiment_id = "42712666-f5cc-482f-9514-cc9d976e020d"
+readout_type = "nr"
 
 # Create engine.
 engine = create_engine(f"sqlite:///{db_path}")

@@ -77,7 +77,7 @@ def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, b
 
     title = f"{readout_type.capitalize()} Trace at {current_value} A"
     file_suffix = f"{current_value}"
-    if readout_type.lower() == "nr" and detuning_val is not None:
+    if readout_type.lower() in ["nr", "normal"] and detuning_val is not None:
         title += f", Detuning = {detuning_val} GHz"
         file_suffix += f"_Delta_{detuning_val}"
 
