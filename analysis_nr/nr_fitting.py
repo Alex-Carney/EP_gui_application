@@ -136,16 +136,19 @@ def double_lorentzian_fit_NR(x, y, guess1, guess2):
     return out
 
 
-def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, sim_peaks_idx, overfitting_amplitude_threshold):
+def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, sim_peaks_idx,
+                            overfitting_amplitude_threshold):
     # ------------------ FIND PEAKS IN SIMULATED DATA ------------------
     freqs_ghz = frequencies / 1e9
     sim_peaks_freq = np.sort(freqs_ghz[sim_peaks_idx])
     power_linear = 10 ** (power_dbm / 10)
+
     # ------------------ FIT SINGLE AND/OR DOUBLE LORENTZIANS ------------------
     single_fit = None
     if len(sim_peaks_idx) == 1:
-        # If 1 peak is found, then we try BOTH a Single and Double fit for the Expr data
+        # If 1 peak is found, then we try BOTH a Single and Double fit for the experimental data
         single_fit = single_lorentzian_fit(freqs_ghz, power_linear, sim_peaks_freq[0])
+
     guess1 = sim_peaks_freq[0]
     guess2 = sim_peaks_freq[1] if len(sim_peaks_idx) > 1 else guess1 + 0.001
     double_fit = double_lorentzian_fit_NR(freqs_ghz, power_linear, guess1, guess2)
@@ -159,21 +162,19 @@ def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, si
             # First, compare redchi values
             if double_fit.redchi < single_fit.redchi:
                 # For double fit to be accepted, check that the amplitudes are similar.
-                # Get the amplitudes from the double fit parameters.
                 amp1 = double_fit.params["lz1_amplitude"].value
                 amp2 = double_fit.params["lz2_amplitude"].value
-                # Convert amplitudes to dB (make sure amplitudes are > 0 to avoid log10 issues)
+                # Convert amplitudes to dB (avoid log10 issues by checking if amplitudes > 0)
                 amp1_db = 10 * np.log10(amp1) if amp1 > 0 else -np.inf
                 amp2_db = 10 * np.log10(amp2) if amp2 > 0 else -np.inf
                 if abs(amp1_db - amp2_db) <= overfitting_amplitude_threshold:
-
-                    # The amplitudes are similar (within 10 dB) → accept the double fit.
+                    # The amplitudes are similar (within the threshold) → accept the double fit.
                     chosen = double_fit
                     chosen_type = "double"
                 else:
                     print(f"Amplitudes: {amp1_db:.2f} dB, {amp2_db:.2f} dB (diff: {abs(amp1_db - amp2_db):.2f} dB) → "
                           f"overfitting detected on current {current_value}")
-                    # Amplitudes differ by more than 10 dB → overfitting, so choose the single fit.
+                    # Amplitudes differ by more than the threshold → overfitting, so choose the single fit.
                     chosen = single_fit
                     chosen_type = "single"
             else:
@@ -183,20 +184,63 @@ def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, si
             chosen = single_fit
             chosen_type = "single"
 
+    # ------------------ RETURN THE DESIRED PARAMETERS INCLUDING LINEWIDTH ------------------
     if chosen_type == "single":
         center = chosen.params["lz_center"].value
-        center_unc = chosen.params["lz_center"].stderr if chosen.params["lz_center"].stderr is not None else np.nan
-        result = {"current": current_value, "fit_type": "single", "omega": center, "omega_unc": center_unc,
-                  "fit_result": chosen, "x_fit": freqs_ghz}
+        center_unc = (chosen.params["lz_center"].stderr
+                      if chosen.params["lz_center"].stderr is not None else np.nan)
+        sigma = chosen.params["lz_sigma"].value
+        sigma_unc = (chosen.params["lz_sigma"].stderr
+                     if chosen.params["lz_sigma"].stderr is not None else np.nan)
+        # Calculate FWHM from sigma (linewidth)
+        linewidth = 2 * sigma
+        linewidth_unc = 2 * sigma_unc if not np.isnan(sigma_unc) else np.nan
+
+        result = {
+            "current": current_value,
+            "fit_type": "single",
+            "omega": center,
+            "omega_unc": center_unc,
+            "linewidth": linewidth,
+            "linewidth_unc": linewidth_unc,
+            "fit_result": chosen,
+            "x_fit": freqs_ghz
+        }
     else:
         peak1 = chosen.params["lz1_center"].value
-        peak1_unc = chosen.params["lz1_center"].stderr if chosen.params["lz1_center"].stderr is not None else np.nan
+        peak1_unc = (chosen.params["lz1_center"].stderr
+                     if chosen.params["lz1_center"].stderr is not None else np.nan)
         peak2 = chosen.params["lz2_center"].value
-        peak2_unc = chosen.params["lz2_center"].stderr if chosen.params["lz2_center"].stderr is not None else np.nan
-        result = {"current": current_value, "fit_type": "double",
-                  "peak1": peak1, "peak1_unc": peak1_unc,
-                  "peak2": peak2, "peak2_unc": peak2_unc,
-                  "fit_result": chosen, "x_fit": freqs_ghz}
+        peak2_unc = (chosen.params["lz2_center"].stderr
+                     if chosen.params["lz2_center"].stderr is not None else np.nan)
+
+        # Compute linewidths for each peak: FWHM = 2 * sigma
+        sigma1 = chosen.params["lz1_sigma"].value
+        sigma1_unc = (chosen.params["lz1_sigma"].stderr
+                      if chosen.params["lz1_sigma"].stderr is not None else np.nan)
+        sigma2 = chosen.params["lz2_sigma"].value
+        sigma2_unc = (chosen.params["lz2_sigma"].stderr
+                      if chosen.params["lz2_sigma"].stderr is not None else np.nan)
+
+        peak1_linewidth = 2 * sigma1
+        peak1_linewidth_unc = 2 * sigma1_unc if not np.isnan(sigma1_unc) else np.nan
+        peak2_linewidth = 2 * sigma2
+        peak2_linewidth_unc = 2 * sigma2_unc if not np.isnan(sigma2_unc) else np.nan
+
+        result = {
+            "current": current_value,
+            "fit_type": "double",
+            "peak1": peak1,
+            "peak1_unc": peak1_unc,
+            "peak2": peak2,
+            "peak2_unc": peak2_unc,
+            "peak1_linewidth": peak1_linewidth,
+            "peak1_linewidth_unc": peak1_linewidth_unc,
+            "peak2_linewidth": peak2_linewidth,
+            "peak2_linewidth_unc": peak2_linewidth_unc,
+            "fit_result": chosen,
+            "x_fit": freqs_ghz
+        }
     return result
 
 

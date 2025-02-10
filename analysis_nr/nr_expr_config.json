@@ -83,7 +83,9 @@
     "optimal_J_unc": 2.4e-05,
     "simulated_vertical_offset": 10.5,
     "amplitude_threshold_overfitting": 0.11,
-    "readout_type": "nr"
+    "readout_type": "nr",
+    "overlap_region_start": 0.01635,
+    "overlap_region_end": 0.0166
   },
   "hailey_friday_normal": {
     "name": "DefaultConfig",

@@ -11,9 +11,9 @@ import nr_amperage_data_loader as nr_data
 import nr_fitting as nr_fit
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
-CONFIG_NAME = "hailey_friday_normal"
-CAV_YIG_DEBUG = True
-NR_DEBUG = True
+CONFIG_NAME = "hailey_friday"
+CAV_YIG_DEBUG = False
+NR_DEBUG = False
 
 # ------------------ TOP LEVEL CONFIGURATION ------------------
 NUM_SIMULATION_SHOTS = 1250
@@ -181,6 +181,7 @@ def main():
     detuning_list = []
     peak_list = []
     peak_unc_list = []
+    linewidth_list = []
 
     # --- 2) Collect the *theory* min/max data for shading ---
     (theory_detuning_list, theory_lower_min_list, theory_lower_max_list,
@@ -195,11 +196,14 @@ def main():
             detuning_list.append(delta_val)
             peak_list.append(fit_data.get("omega"))
             peak_unc_list.append(fit_data.get("omega_unc", 0.0))
+            linewidth_list.append(fit_data.get("linewidth", 0.0))
         elif fit_data.get("fit_type") == "double":
             detuning_list.extend([delta_val, delta_val])
             peak_list.extend([fit_data.get("peak1"), fit_data.get("peak2")])
             peak_unc_list.extend([fit_data.get("peak1_unc", 0.0),
                                   fit_data.get("peak2_unc", 0.0)])
+            linewidth_list.extend([fit_data.get("peak1_linewidth", 0.0),
+                                   fit_data.get("peak2_linewidth", 0.0)])
 
         theory_detuning_list.append(delta_val)
         theory_lower_min_list.append(nr_fit_dict[cur]["theory_lower_min"])
@@ -214,6 +218,7 @@ def main():
     detuning_array = np.array(detuning_list)
     peak_array = np.array(peak_list)
     peak_unc_array = np.array(peak_unc_list)
+    linewidth_array = np.array(linewidth_list)
 
     theory_detuning_array = np.array(theory_detuning_list)
     theory_lower_min_array = np.array(theory_lower_min_list)
@@ -255,8 +260,9 @@ def main():
         overlay_folder=overlay_folder,
         theory_upper_min_array=theory_upper_min_array,
         theory_upper_max_array=theory_upper_max_array,
-        peak_unc_array=peak_unc_array,
-        errorbar_color="cyan"
+        peak_unc_array=linewidth_array,  # Use linewidths for the errorbar values
+        errorbar_color="cyan",
+        filename_prepend="fwhm_"
     )
 
     # ------------------ FIGURE 3 PLOT (DETUNING COLORPLOT WITH SENSITIVITY) ------------------

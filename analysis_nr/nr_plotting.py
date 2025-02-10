@@ -302,7 +302,7 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
                          optimal_J, detuning_array,
                          peak_array, peak_unc_array, experiment_id, overlay_folder,
                          theory_upper_min_array, theory_upper_max_array,
-                         overlap_region_start=None, overlap_region_end=None, errorbar_color="red"):
+                         overlap_region_start=None, overlap_region_end=None, errorbar_color="red", filename_prepend=""):
     # Now create the plot
     fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -329,9 +329,9 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     # Add a vertical line at 2*J
     ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
     if overlap_region_start is not None:
-        ax.axvline(x=overlap_region_start, color="black", linestyle="-")
+        ax.axvline(x=overlap_region_start, color="black", linestyle="--")
     if overlap_region_end is not None:
-        ax.axvline(x=overlap_region_end, color="black", linestyle="-")
+        ax.axvline(x=overlap_region_end, color="black", linestyle="--")
 
 
     # --------------------- Start Add Shading for Zone III ---------------------
@@ -349,7 +349,7 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
 
     # Shade this region over the full y-axis.
     # ax.axvspan(region_xmin, region_xmax, color="orange", alpha=0.2, label="J Calculation Region")
-    ax.axvline(x=region_xmin, color="black", linestyle="-")
+    ax.axvline(x=region_xmin, color="black", linestyle="--")
     # --------------------- End Add Shading for Zone III --------------------
 
     # Plot the experimental data on top
@@ -372,7 +372,7 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     ax.legend(loc="best")
     plt.tight_layout()
 
-    overlay_plot_path = os.path.join(overlay_folder, f"nr_peaks_overlay_exp_{experiment_id}.png")
+    overlay_plot_path = os.path.join(overlay_folder, f"{filename_prepend}nr_peaks_overlay_exp_{experiment_id}.png")
     plt.savefig(overlay_plot_path, dpi=300)
     plt.close(fig)
     print("Saved NR peaks overlay plot to", overlay_plot_path)
