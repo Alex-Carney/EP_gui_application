@@ -5,7 +5,8 @@ from lmfit.models import LorentzianModel
 from typing import TypedDict, Union, Optional, Any
 from stages import Fitter
 
-OVERFITTING_AMPLITUDE_DIFFERENCE_THRESHOLD = 0.11  # dB
+# OVERFITTING_AMPLITUDE_DIFFERENCE_THRESHOLD = 0.11  # dB
+OVERFITTING_AMPLITUDE_DIFFERENCE_THRESHOLD = 0.22  # dB
 
 
 class FitTraceResult(TypedDict):
@@ -135,7 +136,7 @@ def double_lorentzian_fit_NR(x, y, guess1, guess2):
     return out
 
 
-def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, sim_peaks_idx):
+def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, sim_peaks_idx, overfitting_amplitude_threshold):
     # ------------------ FIND PEAKS IN SIMULATED DATA ------------------
     freqs_ghz = frequencies / 1e9
     sim_peaks_freq = np.sort(freqs_ghz[sim_peaks_idx])
@@ -164,7 +165,7 @@ def theory_supported_NR_fit(current_value, frequencies, power_dbm, sim_trace, si
                 # Convert amplitudes to dB (make sure amplitudes are > 0 to avoid log10 issues)
                 amp1_db = 10 * np.log10(amp1) if amp1 > 0 else -np.inf
                 amp2_db = 10 * np.log10(amp2) if amp2 > 0 else -np.inf
-                if abs(amp1_db - amp2_db) <= OVERFITTING_AMPLITUDE_DIFFERENCE_THRESHOLD:
+                if abs(amp1_db - amp2_db) <= overfitting_amplitude_threshold:
 
                     # The amplitudes are similar (within 10 dB) → accept the double fit.
                     chosen = double_fit

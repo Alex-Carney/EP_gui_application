@@ -24,7 +24,8 @@
     "db_path": "../databases/NR_SUN_NITE_PPP_FINE.db",
     "optimal_J": 0.008420,
     "optimal_J_unc": 0.000011,
-    "simulated_vertical_offset": 10.5
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 0.5
   },
   "thursday_ovn": {
     "name": "DefaultConfig",
@@ -52,6 +53,7 @@
     "optimal_J": 0.009420,
     "optimal_J_unc": 0.000011,
     "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 0.5,
     "readout_type": "nr"
   },
   "hailey_friday": {
@@ -80,6 +82,7 @@
     "optimal_J": 0.008218,
     "optimal_J_unc": 2.4e-05,
     "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 0.11,
     "readout_type": "nr"
   },
   "hailey_friday_normal": {
@@ -108,7 +111,10 @@
     "optimal_J": 0.008215,
     "optimal_J_unc": 2.2e-05,
     "simulated_vertical_offset": 10.5,
-    "readout_type": "normal"
+    "amplitude_threshold_overfitting": 0.11,
+    "readout_type": "normal",
+    "overlap_region_start": 0.01635,
+    "overlap_region_end": 0.0166
   },
   "saturday": {
     "name": "DefaultConfig",
@@ -116,8 +122,8 @@
     "experiment_id": "42712666-f5cc-482f-9514-cc9d976e020d",
     "frequency_limits": {
       "colorplot": {
-        "min": 5.993e9,
-        "max": 6.002e9
+        "min": 5.992e9,
+        "max": 6.003e9
       },
       "cavity": {
         "min": 5.995e9,
@@ -133,9 +139,68 @@
       "max": -0.0006
     },
     "db_path": "../databases/NR_R_SAT_OVN_H.db",
-    "optimal_J": 0.008215,
-    "optimal_J_unc": 2.2e-05,
+    "optimal_J": 0.008192,
+    "optimal_J_unc": 3.3e-05,
     "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 0.22,
+    "readout_type": "nr"
+  },
+  "saturday2": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "b3a1e0b6-a39a-4f8e-a9c1-75aff10c26c8",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.992e9,
+        "max": 6.003e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.007,
+      "max": -0.0005
+    },
+    "db_path": "../databases/NR_R_SAT_OVN_H.db",
+    "optimal_J": 0.008167,
+    "optimal_J_unc": 2.7e-05,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 0.17,
+    "readout_type": "nr"
+  },
+  "saturday3": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id":  "f7e98e1d-9b21-4dea-b714-6ffa79c5a0de",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 5.992e9,
+        "max": 6.003e9
+      },
+      "cavity": {
+        "min": 5.995e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 5.981e9,
+        "max": 5.998e9
+      }
+    },
+    "current_limits": {
+      "min": -0.007,
+      "max": -0.0005
+    },
+    "db_path": "../databases/NR_R_SAT_OVN_H.db",
+    "optimal_J": 0.008075,
+    "optimal_J_unc": 5.6e-05,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 0.10,
     "readout_type": "nr"
   }
 }

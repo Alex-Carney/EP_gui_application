@@ -131,7 +131,8 @@ def main():
         highest_peak_range = (np.nanmin(all_peak_freqs[:, 1]), np.nanmax(all_peak_freqs[:, 1]))
 
         # Use the theory-supported NR fit to find the experimental peaks
-        fit_data = nr_fit.theory_supported_NR_fit(cur, nr_freqs, trace, sim_trace_avg, sim_peaks_idx_avg)
+        fit_data = nr_fit.theory_supported_NR_fit(cur, nr_freqs, trace, sim_trace_avg, sim_peaks_idx_avg,
+                                                  config.amplitude_threshold_overfitting)
 
         # Store everything in nr_fit_dict
         nr_fit_dict[cur] = {
@@ -238,8 +239,60 @@ def main():
         overlay_folder=overlay_folder,
         theory_upper_min_array=theory_upper_min_array,
         theory_upper_max_array=theory_upper_max_array,
-        peak_unc_array=peak_unc_array
+        peak_unc_array=peak_unc_array,
+        errorbar_color="red"
     )
+
+    # Plot the final plot again, but use Linewidths for the errorbar values instead
+    nr_plot.plot_final_peak_plot(
+        theory_detuning_array=theory_detuning_array,
+        theory_lower_min_array=theory_lower_min_array,
+        theory_lower_max_array=theory_lower_max_array,
+        optimal_J=config.optimal_J,
+        detuning_array=detuning_array,
+        peak_array=peak_array,
+        experiment_id=experiment_id,
+        overlay_folder=overlay_folder,
+        theory_upper_min_array=theory_upper_min_array,
+        theory_upper_max_array=theory_upper_max_array,
+        peak_unc_array=peak_unc_array,
+        errorbar_color="cyan"
+    )
+
+    # ------------------ FIGURE 3 PLOT (DETUNING COLORPLOT WITH SENSITIVITY) ------------------
+    fig3_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_FIG3")
+
+    # Take all of the peaks found with detuning less than the EP threshold that are single peaks,
+    # and average their frequency.
+    ep_threshold = 2 * config.optimal_J  # EP threshold defined as 2 * optimal_J
+    single_peak_frequencies = []
+
+    # Loop through each current in nr_fit_dict
+    for cur, data in nr_fit_dict.items():
+        fit_data = data.get("fit_data")
+        if fit_data is None:
+            continue
+        # Only consider single Lorentzian fits
+        if fit_data.get("fit_type") == "single":
+            delta_val = delta_map.get(cur)
+            if delta_val is None:
+                continue
+            # Check if the detuning is below the EP threshold
+            if delta_val < ep_threshold:
+                # Extract the single peak frequency (named "omega")
+                omega_val = fit_data.get("omega")
+                if omega_val is not None:
+                    single_peak_frequencies.append(omega_val)
+
+    if single_peak_frequencies:
+        avg_single_peak_frequency = np.mean(single_peak_frequencies)
+        print("Average frequency for single peaks with detuning less than EP threshold:",
+              avg_single_peak_frequency)
+
+        # Plot the figure 3 plot
+
+    else:
+        print("WARNING: No single peaks with detuning less than EP threshold were found.")
 
 
 if __name__ == "__main__":

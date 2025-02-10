@@ -18,6 +18,9 @@ class ExperimentConfig:
     optimal_J: float
     optimal_J_unc: float
     simulated_vertical_offset: float
+    amplitude_threshold_overfitting: float
+    overlap_region_start: float = None
+    overlap_region_end: float = None
 
 
 def load_config(config_path: str, config_name: str = "default") -> ExperimentConfig:
@@ -45,4 +48,7 @@ def load_config(config_path: str, config_name: str = "default") -> ExperimentCon
         optimal_J=cfg["optimal_J"],
         optimal_J_unc=cfg["optimal_J_unc"],
         simulated_vertical_offset=cfg["simulated_vertical_offset"],
+        amplitude_threshold_overfitting=cfg["amplitude_threshold_overfitting"],
+        overlap_region_start=cfg["overlap_region_start"] if "overlap_region_start" in cfg else None,
+        overlap_region_end=cfg["overlap_region_end"] if "overlap_region_end" in cfg else None,
     )
