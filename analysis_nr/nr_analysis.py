@@ -11,9 +11,9 @@ import nr_amperage_data_loader as nr_data
 import nr_fitting as nr_fit
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
-CONFIG_NAME = "hailey_friday"
-CAV_YIG_DEBUG = False
-NR_DEBUG = False
+CONFIG_NAME = "hailey_friday_normal"
+CAV_YIG_DEBUG = True
+NR_DEBUG = True
 
 # ------------------ TOP LEVEL CONFIGURATION ------------------
 NUM_SIMULATION_SHOTS = 1250
@@ -245,6 +245,8 @@ def main():
         theory_upper_min_array=theory_upper_min_array,
         theory_upper_max_array=theory_upper_max_array,
         peak_unc_array=peak_unc_array,
+        overlap_region_start=config.overlap_region_start,
+        overlap_region_end=config.overlap_region_end,
         errorbar_color="red"
     )
 
@@ -262,6 +264,8 @@ def main():
         theory_upper_max_array=theory_upper_max_array,
         peak_unc_array=linewidth_array,  # Use linewidths for the errorbar values
         errorbar_color="cyan",
+        overlap_region_start=config.overlap_region_start,
+        overlap_region_end=config.overlap_region_end,
         filename_prepend="fwhm_"
     )
 
@@ -296,6 +300,8 @@ def main():
               avg_single_peak_frequency)
 
         # Plot the figure 3 plot
+        nr_plot.plot_fig3(nr_power, nr_currents, nr_freqs, delta_df,
+                          experiment_id, nr_settings, avg_single_peak_frequency, fig3_folder)
 
     else:
         print("WARNING: No single peaks with detuning less than EP threshold were found.")
