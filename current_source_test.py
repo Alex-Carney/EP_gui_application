@@ -13,8 +13,8 @@ idn = cs.get_idn()
 
 print(idn)
 
-current_value = cs.voltage.get()
+current_value = cs.current.get()
 
 print(current_value)
 
-cs.voltage.set(-1.501e-02)
+cs.current.set(-1.501e-02)
