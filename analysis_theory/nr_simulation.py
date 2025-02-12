@@ -34,7 +34,7 @@ def simulate_trace(J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs):
         w_y=w_y,
         gamma_vec=np.array([kappa_c, kappa_y]),
         drive_vector=np.array([1, 0]),
-        readout_vector=np.array([0, 1]),
+        readout_vector=np.array([1, 0]),
         phi_val=np.deg2rad(180),
     )
     nr_ep_ss_eqn = sm.get_steady_state_response_transmission(symbols_dict, sim_params)

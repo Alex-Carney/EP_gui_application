@@ -393,7 +393,7 @@ class SweepWorker(QThread):
                             # Set new current
                             print(f"Setting current to {new_current} A")
                             with self.current_lock:
-                                self.current_source.current.set(new_current)
+                                self.current_source.voltage.set(new_current)
                                 self.current_value = new_current  # Update current value
 
                             # Wait for current source to settle
@@ -424,7 +424,7 @@ class SweepWorker(QThread):
                         # Set current to best found value
                         print(f"Setting current to best value: {best_current} A")
                         with self.current_lock:
-                            self.current_source.current.set(best_current)
+                            self.current_source.voltage.set(best_current)
                             self.current_value = best_current  # Update current value
 
                         # Optionally, get final measurement at best current

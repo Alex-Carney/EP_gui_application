@@ -17,7 +17,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -99,
       "max": 99
     },
@@ -45,7 +45,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -0.007,
       "max": -0.0048
     },
@@ -74,7 +74,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -0.007,
       "max": -0.00315
     },
@@ -105,7 +105,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -0.007,
       "max": -0.00315
     },
@@ -136,7 +136,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -0.007,
       "max": -0.0006
     },
@@ -165,7 +165,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -0.007,
       "max": -0.0005
     },
@@ -194,7 +194,7 @@
         "max": 5.998e9
       }
     },
-    "current_limits": {
+    "voltage_limits": {
       "min": -0.007,
       "max": -0.0005
     },

@@ -2,11 +2,10 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from nr_fitting import iterative_NR_fit
 from scipy.signal import savgol_filter
 
 
-def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, base_folder, fit_data,
+def plot_individual_trace(voltage_value, frequencies, power_dbm, readout_type, base_folder, fit_data,
                           detuning_val=None, order_prefix="", simulated_trace=None, simulated_trace_peak_idxs=None,
                           simulated_vertical_offset=None,
                           peak1_lower_bound=None,
@@ -116,8 +115,8 @@ def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, b
             except Exception as e:
                 print("Error plotting individual Lorentzian components:", e)
 
-    title = f"{readout_type.capitalize()} Trace at {current_value} A"
-    file_suffix = f"{current_value}"
+    title = f"{readout_type.capitalize()} Trace at {voltage_value} A"
+    file_suffix = f"{voltage_value}"
     if readout_type.lower() in ["nr", "normal"] and detuning_val is not None:
         title += f", Detuning = {detuning_val} GHz"
         file_suffix += f"_Delta_{detuning_val}"
@@ -153,7 +152,7 @@ def plot_individual_trace(current_value, frequencies, power_dbm, readout_type, b
     plot_path = os.path.join(folder, plot_filename)
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
-    print(f"Saved individual {readout_type} trace plot for current = {current_value} A to {plot_path}")
+    print(f"Saved individual {readout_type} trace plot for current = {voltage_value} A to {plot_path}")
 
 
 def ensure_debug_folder(base_folder, readout_type):
@@ -166,7 +165,7 @@ def ensure_debug_folder(base_folder, readout_type):
     return folder
 
 
-def plot_delta_colorplot(nr_power_grid, currents, frequencies, delta_df, experiment_id, settings, base_folder):
+def plot_K_colorplot(nr_power_grid, voltages, frequencies, K_df, experiment_id, settings, base_folder):
     """
     Plot a colorplot of NR power vs. detuning.
 
@@ -174,24 +173,24 @@ def plot_delta_colorplot(nr_power_grid, currents, frequencies, delta_df, experim
     """
     os.makedirs(base_folder, exist_ok=True)
 
-    delta_map = delta_df.set_index("current")["Delta"]
-    Delta_values = np.array([delta_map.get(c, np.nan) for c in currents])
-    valid_mask = ~np.isnan(Delta_values)
+    K_map = K_df.set_index("voltage")["K"]
+    K_values = np.array([K_map.get(v, np.nan) for v in voltages])
+    valid_mask = ~np.isnan(K_values)
     nr_power_grid = nr_power_grid[valid_mask, :]
-    Delta_values = Delta_values[valid_mask]
-    sort_idx = np.argsort(Delta_values)
-    Delta_sorted = Delta_values[sort_idx]
+    K_values = K_values[valid_mask]
+    sort_idx = np.argsort(K_values)
+    K_sorted = K_values[sort_idx]
     power_grid_sorted = nr_power_grid[sort_idx, :]
 
-    n_rows = len(Delta_sorted)
-    delta_edges = np.zeros(n_rows + 1)
+    n_rows = len(K_sorted)
+    K_edges = np.zeros(n_rows + 1)
     if n_rows > 1:
-        delta_edges[1:-1] = (Delta_sorted[:-1] + Delta_sorted[1:]) / 2
-        delta_edges[0] = Delta_sorted[0] - (Delta_sorted[1] - Delta_sorted[0]) / 2
-        delta_edges[-1] = Delta_sorted[-1] + (Delta_sorted[-1] - Delta_sorted[-2]) / 2
+        K_edges[1:-1] = (K_sorted[:-1] + K_sorted[1:]) / 2
+        K_edges[0] = K_sorted[0] - (K_sorted[1] - K_sorted[0]) / 2
+        K_edges[-1] = K_sorted[-1] + (K_sorted[-1] - K_sorted[-2]) / 2
     else:
-        delta_edges[0] = Delta_sorted[0] - 0.001
-        delta_edges[1] = Delta_sorted[0] + 0.001
+        K_edges[0] = K_sorted[0] - 0.001
+        K_edges[1] = K_sorted[0] + 0.001
 
     freqs_ghz = frequencies / 1e9
     n_cols = len(freqs_ghz)
@@ -205,8 +204,8 @@ def plot_delta_colorplot(nr_power_grid, currents, frequencies, delta_df, experim
         freq_edges[1] = freqs_ghz[0] + 0.01
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    c = ax.pcolormesh(delta_edges, freq_edges, power_grid_sorted.T, shading="auto", cmap="inferno")
-    ax.set_xlabel("Detuning Δ (GHz)", fontsize=14)
+    c = ax.pcolormesh(K_edges, freq_edges, power_grid_sorted.T, shading="auto", cmap="inferno")
+    ax.set_xlabel("K (GHz)", fontsize=14)
     ax.set_ylabel("Frequency (GHz)", fontsize=14)
 
     title = f"Experiment {experiment_id} NR Hybridized Data\n"
@@ -218,14 +217,14 @@ def plot_delta_colorplot(nr_power_grid, currents, frequencies, delta_df, experim
     cbar.ax.tick_params(labelsize=12)
     plt.tight_layout()
 
-    plot_filename = f"NR_colorplot_detuning_exp_{experiment_id}.png"
+    plot_filename = f"PT_colorplot_K_exp_{experiment_id}.png"
     plot_path = os.path.join(base_folder, plot_filename)
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
-    print(f"Saved NR color plot (detuning) to {plot_path}")
+    print(f"Saved NR color plot (K) to {plot_path}")
 
 
-def plot_raw_colorplot(power_grid, currents, frequencies, experiment_id, settings, base_folder, readout_type="nr"):
+def plot_raw_colorplot(power_grid, voltages, frequencies, experiment_id, settings, base_folder, readout_type="nr"):
     """
     Plot a raw data colorplot (current as X-axis).
 
@@ -234,7 +233,7 @@ def plot_raw_colorplot(power_grid, currents, frequencies, experiment_id, setting
     os.makedirs(base_folder, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    c = ax.pcolormesh(currents, frequencies / 1e9, power_grid.T, shading="auto", cmap="inferno")
+    c = ax.pcolormesh(voltages, frequencies / 1e9, power_grid.T, shading="auto", cmap="inferno")
     ax.set_xlabel("Current (A)", fontsize=14)
     ax.set_ylabel("Frequency (GHz)", fontsize=14)
 
@@ -254,8 +253,8 @@ def plot_raw_colorplot(power_grid, currents, frequencies, experiment_id, setting
     print(f"Saved raw {readout_type.upper()} color plot (current as X-axis) to {plot_path}")
 
 
-def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_lower_max_array,
-                         optimal_J, detuning_array,
+def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_max_array,
+                         optimal_J, K_array,
                          peak_array, peak_unc_array, experiment_id, overlay_folder,
                          theory_upper_min_array, theory_upper_max_array,
                          overlap_region_start=None, overlap_region_end=None, errorbar_color="red", filename_prepend=""):
@@ -265,7 +264,7 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     # Draw the theoretical shading first (behind the data)
     # Lower branch
     ax.fill_between(
-        theory_detuning_array,
+        theory_K_array,
         theory_lower_min_array,
         theory_lower_max_array,
         color="blue",
@@ -274,7 +273,7 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     )
     # Upper branch
     ax.fill_between(
-        theory_detuning_array,
+        theory_K_array,
         theory_upper_min_array,
         theory_upper_max_array,
         color="green",
@@ -282,8 +281,8 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
         label="Theory Upper Branch"
     )
 
-    # Add a vertical line at 2*J
-    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+    # Add a vertical line at -2*J
+    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
     if overlap_region_end is not None:
@@ -293,14 +292,14 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     # Add a shaded region that covers the largest 50 values of detuning (X points)
     # This is to highlight the region where the NR peaks are most likely to be found
     # First, determine the 50 largest detuning values from the experimental data.
-    if len(detuning_array) >= 50:
-        largest_50_detuning = np.sort(detuning_array)[-50:]
+    if len(K_array) >= 50:
+        largest_50_K = np.sort(K_array)[-50:]
     else:
-        largest_50_detuning = detuning_array
+        largest_50_K = K_array
 
     # Get the minimum and maximum values from these 50 points.
-    region_xmin = np.min(largest_50_detuning)
-    region_xmax = np.max(largest_50_detuning)
+    region_xmin = np.min(largest_50_K)
+    region_xmax = np.max(largest_50_K)
 
     # Shade this region over the full y-axis.
     # ax.axvspan(region_xmin, region_xmax, color="orange", alpha=0.2, label="J Calculation Region")
@@ -308,15 +307,15 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     # --------------------- End Add Shading for Zone III --------------------
 
     # Plot the experimental data on top
-    ax.errorbar(detuning_array, peak_array,
+    ax.errorbar(K_array, peak_array,
                 yerr=peak_unc_array,
                 fmt="o", ecolor=errorbar_color,
                 capsize=4, label="NR Hybridized Peaks (Data)",
                 markersize=2, color="black")
 
-    ax.set_xlabel("Detuning Δ (GHz)", fontsize=14)
+    ax.set_xlabel("K (GHz)", fontsize=14)
     ax.set_ylabel("Peak Frequency (GHz)", fontsize=14)
-    ax.set_title("NR Peak Locations vs. Detuning", fontsize=14)
+    ax.set_title("NR Peak Locations vs. K", fontsize=14)
 
     # Tidy up plot ranges, in case some shading is out of range
     y_min = min(peak_array.min(), theory_lower_min_array.min(), theory_upper_min_array.min())
@@ -338,75 +337,40 @@ def moving_average(data, window):
     return np.convolve(data, np.ones(window) / window, mode='same')
 
 
-def plot_fig3(nr_power_grid, currents, frequencies, delta_df, experiment_id, settings,
-              avg_single_peak_frequency, fig3_folder, frequency_radius=0.002,
-              smoothing_window=100, deriv_ylim=None, optimal_J=None):
+def plot_fig3_PT(pt_power_grid, voltages, frequencies, K_df, experiment_id, settings,
+                 avg_single_peak_frequency, fig3_folder, frequency_radius=0.002,
+                 smoothing_window=50, deriv_ylim=None, optimal_J=None):
     """
-    Create Figure 3 consisting of three vertically stacked subplots:
-
-      1) Top: A colorplot with detuning on the X-axis and frequency (in GHz) on the Y-axis.
-         Overlaid on the colorplot are three horizontal dotted lines at the average single‐peak
-         frequency (from your NR fits) and at frequencies ±<frequency_radius> from it.
-
-      2) Middle: A 2D trace plot of power (in dBm, s_21) versus detuning.
-         Three traces are extracted from the colorplot at the center frequency and at the two offsets.
-         Both the original (solid) and a smoothed version (dashed) are plotted.
-
-      3) Bottom: A 2D trace plot of the derivative (numerical d(Power)/d(Detuning)) versus detuning.
-         Only the smoothed derivative traces (for center, center + <frequency_radius>, and center - <frequency_radius>)
-         are plotted.
-
-    The colors used for the three traces in the middle and bottom panels are identical to the
-    horizontal dotted lines in the top panel.
-
-    Parameters:
-      nr_power_grid : 2D numpy array
-          The NR power data. Rows correspond to different detuning values (ordered by current)
-          and columns correspond to frequency points.
-      currents : array-like
-          The current values corresponding to the rows in nr_power_grid.
-      frequencies : 1D numpy array
-          The frequency axis (in Hz) corresponding to the columns of nr_power_grid.
-      delta_df : pandas DataFrame
-          Contains detuning information with at least a "current" column and a "Delta" column.
-      experiment_id : str or int
-          Identifier for the experiment (used in titles/filenames).
-      settings : dict
-          A dictionary of settings (for use in plot titles if desired).
-      avg_single_peak_frequency : float
-          The average frequency (in GHz) computed from the single-Lorentzian fits.
-      fig3_folder : str
-          Path to the folder where the figure will be saved.
-      frequency_radius : float, optional
-          The offset (in GHz) above and below the average frequency (default is 0.002, i.e. 2 MHz).
-      smoothing_window : int, optional
-          The window length for the Savitzky–Golay filter (default is 20).
-      deriv_ylim : tuple or None, optional
-          If provided, sets the y-limits for the derivative plot (bottom subplot).
+    Create a two-panel figure with a colorplot on top and a 2D trace plot below.
+    The figure is formatted with minimal whitespace, no titles, a shared colorbar on the right,
+    an x-axis label of '$\Delta \kappa$ [GHz]', and larger text for all labels, ticks, and legends.
     """
-    # --- Prepare the colorplot data ---
-    # Create a mapping from current to detuning from the DataFrame.
-    delta_map = delta_df.set_index("current")["Delta"].to_dict()
-    Delta_values = np.array([delta_map.get(c, np.nan) for c in currents])
-    valid_mask = ~np.isnan(Delta_values)
-    # Filter out any rows with no detuning data.
-    nr_power_grid = nr_power_grid[valid_mask, :]
-    Delta_values = Delta_values[valid_mask]
+
+    # -------------------------
+    # Prepare the colorplot data
+    # -------------------------
+    # Create a mapping from voltage to detuning (K) from the DataFrame.
+    K_map = K_df.set_index("voltage")["K"].to_dict()
+    K_values = np.array([K_map.get(c, np.nan) for c in voltages])
+    valid_mask = ~np.isnan(K_values)
+    pt_power_grid = pt_power_grid[valid_mask, :]
+    K_values = K_values[valid_mask]
+
     # Sort the data by detuning.
-    sort_idx = np.argsort(Delta_values)
-    Delta_sorted = Delta_values[sort_idx]
-    power_grid_sorted = nr_power_grid[sort_idx, :]
+    sort_idx = np.argsort(K_values)
+    K_sorted = K_values[sort_idx]
+    power_grid_sorted = pt_power_grid[sort_idx, :]
 
-    # Compute the "edges" for the detuning axis (for pcolormesh).
-    n_rows = len(Delta_sorted)
-    delta_edges = np.zeros(n_rows + 1)
+    # Compute the edges for the detuning axis for pcolormesh.
+    n_rows = len(K_sorted)
+    K_edges = np.zeros(n_rows + 1)
     if n_rows > 1:
-        delta_edges[1:-1] = (Delta_sorted[:-1] + Delta_sorted[1:]) / 2
-        delta_edges[0] = Delta_sorted[0] - (Delta_sorted[1] - Delta_sorted[0]) / 2
-        delta_edges[-1] = Delta_sorted[-1] + (Delta_sorted[-1] - Delta_sorted[-2]) / 2
+        K_edges[1:-1] = (K_sorted[:-1] + K_sorted[1:]) / 2
+        K_edges[0] = K_sorted[0] - (K_sorted[1] - K_sorted[0]) / 2
+        K_edges[-1] = K_sorted[-1] + (K_sorted[-1] - K_sorted[-2]) / 2
     else:
-        delta_edges[0] = Delta_sorted[0] - 0.001
-        delta_edges[1] = Delta_sorted[0] + 0.001
+        K_edges[0] = K_sorted[0] - 0.001
+        K_edges[1] = K_sorted[0] + 0.001
 
     # Convert the frequency axis to GHz.
     freqs_ghz = frequencies / 1e9
@@ -420,91 +384,119 @@ def plot_fig3(nr_power_grid, currents, frequencies, delta_df, experiment_id, set
         freq_edges[0] = freqs_ghz[0] - 0.001
         freq_edges[1] = freqs_ghz[0] + 0.001
 
-    # --- Determine the target frequencies ---
-    # Here, avg_single_peak_frequency is assumed to be in GHz.
+    # -------------------------
+    # Determine the target frequencies
+    # -------------------------
+    # avg_single_peak_frequency is assumed to be in GHz.
     target_center = avg_single_peak_frequency
-    target_plus = target_center + frequency_radius  # e.g., +2 MHz (0.002 GHz)
-    target_minus = target_center - frequency_radius  # e.g., -2 MHz (0.002 GHz)
+    target_plus = target_center + frequency_radius   # e.g., +2 MHz (0.002 GHz)
+    target_minus = target_center - frequency_radius    # e.g., -2 MHz (0.002 GHz)
 
-    # Find the index in the frequency axis closest to each target.
+    # Find the indices in the frequency axis closest to each target.
     idx_center = np.argmin(np.abs(freqs_ghz - target_center))
     idx_plus = np.argmin(np.abs(freqs_ghz - target_plus))
     idx_minus = np.argmin(np.abs(freqs_ghz - target_minus))
 
-    # Define colors for consistency.
+    # Define colors for the three traces.
     color_center = 'red'
     color_plus = 'blue'
     color_minus = 'green'
 
-    # --- Create the figure with 3 vertical subplots ---
+    # -------------------------
+    # Create the figure with 2 vertical subplots.
+    # -------------------------
+    # Define font sizes for a consistent, publication-ready look.
+    label_fs = 18      # axis labels and colorbar label
+    tick_fs = 16       # tick labels
+    legend_fs = 16     # legend text
+
     fig, axes = plt.subplots(nrows=2, sharex=True, figsize=(10, 15))
+    ax0, ax1 = axes
 
-    # (1) Top subplot: Colorplot with horizontal dotted lines.
-    ax0 = axes[0]
-    c = ax0.pcolormesh(delta_edges, freq_edges, power_grid_sorted.T, shading="auto", cmap="inferno")
-    cb = fig.colorbar(c, ax=ax0, label="Power (dBm)")
+    # -- Top subplot: Colorplot --
+    im = ax0.pcolormesh(K_edges, freq_edges, power_grid_sorted.T,
+                        shading="auto", cmap="inferno")
+    # Remove the title and adjust the y-axis label.
+    ax0.set_ylabel("Frequency (GHz)", fontsize=label_fs)
+    ax0.tick_params(axis='both', which='major', labelsize=tick_fs)
+
     # Draw horizontal dotted lines at the target frequencies.
-    ax0.axhline(target_center, color=color_center, linestyle='--', linewidth=2, label='Center Frequency')
-    ax0.axhline(target_plus, color=color_plus, linestyle='--', linewidth=2, label='Center + 2 MHz')
-    ax0.axhline(target_minus, color=color_minus, linestyle='--', linewidth=2, label='Center - 2 MHz')
-    ax0.set_ylabel("Frequency (GHz)", fontsize=14)
-    ax0.set_title(f"NR Colorplot with Detuning (Exp {experiment_id})", fontsize=16)
-    ax0.legend(loc='upper right')
+    ax0.axhline(target_center, color=color_center, linestyle='--',
+                linewidth=2, label='Center Frequency')
+    ax0.axhline(target_plus, color=color_plus, linestyle='--',
+                linewidth=2, label='Center + 2 MHz')
+    ax0.axhline(target_minus, color=color_minus, linestyle='--',
+                linewidth=2, label='Center - 2 MHz')
+    # Place the legend in the lower left with larger text.
+    ax0.legend(loc='lower left', fontsize=legend_fs, frameon=False)
 
-    # (2) Middle subplot: 2D trace plot (Power vs. Detuning).
-    ax1 = axes[1]
-    # For a fixed frequency, the trace is given by the corresponding column of power_grid_sorted.
+    # -- Bottom subplot: 2D Trace Plot --
+    # Extract traces at the target frequency indices.
     trace_center = power_grid_sorted[:, idx_center]
     trace_plus = power_grid_sorted[:, idx_plus]
     trace_minus = power_grid_sorted[:, idx_minus]
 
-    # Use scipy's savgol_filter for smoothing.
-    # Ensure the window length is odd.
+    # Smooth the traces using the Savitzky–Golay filter.
     if smoothing_window % 2 == 0:
-        smoothing_window += 1
+        smoothing_window += 1  # ensure window length is odd
     smoothed_center = savgol_filter(trace_center, smoothing_window, 2)
     smoothed_plus = savgol_filter(trace_plus, smoothing_window, 2)
     smoothed_minus = savgol_filter(trace_minus, smoothing_window, 2)
 
     # Plot the original (solid) and smoothed (dashed) traces.
-    ax1.plot(Delta_sorted, trace_center, color=color_center, label='Center Frequency')
-    ax1.plot(Delta_sorted, trace_plus, color=color_plus, label='Center + 2 MHz')
-    ax1.plot(Delta_sorted, trace_minus, color=color_minus, label='Center - 2 MHz')
-    ax1.plot(Delta_sorted, smoothed_center, color=color_center, linestyle='--',
+    ax1.plot(K_sorted, trace_center, color=color_center, label='Center Frequency')
+    ax1.plot(K_sorted, trace_plus, color=color_plus, label='Center + 2 MHz')
+    ax1.plot(K_sorted, trace_minus, color=color_minus, label='Center - 2 MHz')
+    ax1.plot(K_sorted, smoothed_center, color=color_center, linestyle='--',
              label='Center Frequency (Smoothed)')
-    ax1.plot(Delta_sorted, smoothed_plus, color=color_plus, linestyle='--',
+    ax1.plot(K_sorted, smoothed_plus, color=color_plus, linestyle='--',
              label='Center + 2 MHz (Smoothed)')
-    ax1.plot(Delta_sorted, smoothed_minus, color=color_minus, linestyle='--',
+    ax1.plot(K_sorted, smoothed_minus, color=color_minus, linestyle='--',
              label='Center - 2 MHz (Smoothed)')
-    ax1.set_ylabel("Power (dBm)", fontsize=14)
-    ax1.set_title("2D Trace Plot: Power vs. Detuning", fontsize=16)
-    ax1.legend(loc='upper right')
+    ax1.set_ylabel("Power (dBm)", fontsize=label_fs)
+    ax1.set_xlabel(r'$\Delta \kappa$ [GHz]', fontsize=label_fs)
+    ax1.tick_params(axis='both', which='major', labelsize=tick_fs)
     ax1.grid(True)
+    # Place the legend in the lower left with enlarged text.
+    ax1.legend(loc='lower left', fontsize=legend_fs, frameon=False)
 
-    # --- Finalize the figure ---
-    fig.suptitle("Figure 3: NR Detuning and Sensitivity", fontsize=18)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-
+    # (Optional) If optimal_J is provided, draw a vertical line in the trace plot.
     if optimal_J is not None:
-        plt.axvline(2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+        ax1.axvline(-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
 
-    # Save the figure.
+    # -------------------------
+    # Create a colorbar for the entire figure.
+    # -------------------------
+    # Adjust the right side of the figure to make room for the colorbar.
+    fig.subplots_adjust(right=0.85)
+    # The colorbar spans the full height of the figure (with a small margin).
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label("Power (dBm)", fontsize=label_fs)
+    cbar.ax.tick_params(labelsize=tick_fs)
+
+    # -------------------------
+    # Final layout adjustments and save the figure.
+    # -------------------------
+    # Remove extra whitespace while preserving the colorbar.
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+
     os.makedirs(fig3_folder, exist_ok=True)
     plot_filename = f"FIG3_exp_{experiment_id}.png"
     plot_path = os.path.join(fig3_folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved FIG3 to {plot_path}")
 
 
-def plot_linewidth_vs_detuning(detuning_array, linewidth_array, optimal_J, linewidth_unc_array=None,
-                               experiment_id=None, output_folder=".", errorbar_color="cyan",
-                               overlap_region_start=None, overlap_region_end=None):
+def plot_linewidth_vs_K(K_array, linewidth_array, optimal_J, linewidth_unc_array=None,
+                        experiment_id=None, output_folder=".", errorbar_color="cyan",
+                        overlap_region_start=None, overlap_region_end=None):
     """
     Create a plot of linewidth vs. detuning.
 
     Parameters:
-      detuning_array : numpy.ndarray
+      K_array : numpy.ndarray
          Array of detuning values (in GHz) to be plotted on the X axis.
       linewidth_array : numpy.ndarray
          Array of linewidth values (in GHz) to be plotted on the Y axis.
@@ -522,39 +514,39 @@ def plot_linewidth_vs_detuning(detuning_array, linewidth_array, optimal_J, linew
 
     # If uncertainties are provided, use an errorbar plot; otherwise, simply scatter.
     if linewidth_unc_array is not None:
-        ax.errorbar(detuning_array, linewidth_array, yerr=linewidth_unc_array,
+        ax.errorbar(K_array, linewidth_array, yerr=linewidth_unc_array,
                     fmt="o", ecolor=errorbar_color, capsize=4, markersize=4,
                     color="black", label="Linewidth")
     else:
-        ax.plot(detuning_array, linewidth_array, "o", color=errorbar_color, label="Linewidth")
+        ax.plot(K_array, linewidth_array, "o", color=errorbar_color, label="Linewidth")
 
     # Add a vertical line at 2*J.
-    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
     if overlap_region_end is not None:
         ax.axvline(x=overlap_region_end, color="black", linestyle="--")
 
-    ax.set_xlabel("Detuning Δ (GHz)", fontsize=14)
+    ax.set_xlabel("K (GHz)", fontsize=14)
     ax.set_ylabel("Linewidth (GHz)", fontsize=14)
-    ax.set_title("Linewidth vs. Detuning", fontsize=16)
+    ax.set_title("Linewidth vs. K", fontsize=16)
     ax.grid(True)
     ax.legend(loc="best")
     plt.tight_layout()
 
     if experiment_id is not None:
-        plot_filename = f"linewidth_vs_detuning_exp_{experiment_id}.png"
+        plot_filename = f"linewidth_vs_K_exp_{experiment_id}.png"
     else:
-        plot_filename = "linewidth_vs_detuning.png"
+        plot_filename = "linewidth_vs_K.png"
     plot_path = os.path.join(output_folder, plot_filename)
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
-    print(f"Saved linewidth vs. detuning plot to {plot_path}")
+    print(f"Saved linewidth vs. K plot to {plot_path}")
 
 
-def plot_sum_linewidth_vs_detuning(detuning_array, linewidth_array, optimal_J, linewidth_unc_array=None,
-                                   experiment_id=None, output_folder=".", errorbar_color="cyan",
-                                   overlap_region_start=None, overlap_region_end=None):
+def plot_sum_linewidth_vs_K(K_array, linewidth_array, optimal_J, linewidth_unc_array=None,
+                            experiment_id=None, output_folder=".", errorbar_color="cyan",
+                            overlap_region_start=None, overlap_region_end=None):
     """
     Create a plot of average linewidth vs. detuning.
 
@@ -563,7 +555,7 @@ def plot_sum_linewidth_vs_detuning(detuning_array, linewidth_array, optimal_J, l
     point is plotted for each detuning.
 
     Parameters:
-      detuning_array : numpy.ndarray
+      K_array : numpy.ndarray
          Array of detuning values (in GHz) corresponding to each measurement.
          (When there are two peaks at a given detuning, this array contains duplicate values.)
       linewidth_array : numpy.ndarray
@@ -586,19 +578,19 @@ def plot_sum_linewidth_vs_detuning(detuning_array, linewidth_array, optimal_J, l
     """
     # Group by unique detuning values and average the corresponding linewidths.
     # (Assumes that duplicate detuning values are exactly equal.)
-    unique_detunings = np.unique(detuning_array)
+    unique_detunings = np.unique(K_array)
     avg_linewidth = []
     if linewidth_unc_array is not None:
         avg_linewidth_unc = []
         for d in unique_detunings:
-            mask = (detuning_array == d)
+            mask = (K_array == d)
             avg_linewidth.append(np.sum(linewidth_array[mask]))
             avg_linewidth_unc.append(np.sum(linewidth_unc_array[mask]))
         avg_linewidth = np.array(avg_linewidth)
         avg_linewidth_unc = np.array(avg_linewidth_unc)
     else:
         for d in unique_detunings:
-            mask = (detuning_array == d)
+            mask = (K_array == d)
             avg_linewidth.append(np.sum(linewidth_array[mask]))
         avg_linewidth = np.array(avg_linewidth)
 
@@ -613,34 +605,34 @@ def plot_sum_linewidth_vs_detuning(detuning_array, linewidth_array, optimal_J, l
         ax.plot(unique_detunings, avg_linewidth, "o", color=errorbar_color, label="Avg. Linewidth")
 
     # Add vertical lines at 2*J and (if provided) for the overlap region.
-    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
     if overlap_region_end is not None:
         ax.axvline(x=overlap_region_end, color="black", linestyle="--")
 
-    ax.set_xlabel("Detuning Δ (GHz)", fontsize=14)
+    ax.set_xlabel("K (GHz)", fontsize=14)
     ax.set_ylabel("Total Linewidth (GHz)", fontsize=14)
-    ax.set_title("Total (Sum) Linewidth vs. Detuning", fontsize=16)
+    ax.set_title("Total (Sum) Linewidth vs. K", fontsize=16)
     ax.grid(True)
     ax.legend(loc="best")
     plt.tight_layout()
 
     # Save the plot to the output folder.
     if experiment_id is not None:
-        plot_filename = f"avg_linewidth_vs_detuning_exp_{experiment_id}.png"
+        plot_filename = f"avg_linewidth_vs_K_exp_{experiment_id}.png"
     else:
-        plot_filename = "avg_linewidth_vs_detuning.png"
+        plot_filename = "avg_linewidth_vs_K.png"
     plot_path = os.path.join(output_folder, plot_filename)
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
-    print(f"Saved average linewidth vs. detuning plot to {plot_path}")
+    print(f"Saved average linewidth vs. K plot to {plot_path}")
 
 
-def plot_splitting_ratio_vs_detuning(detuning_array, splitting_ratio_array, optimal_J,
-                                     experiment_id=None, output_folder=".",
-                                     errorbar_color="magenta",
-                                     overlap_region_start=None, overlap_region_end=None):
+def plot_splitting_ratio_vs_K(K_array, splitting_ratio_array, optimal_J,
+                              experiment_id=None, output_folder=".",
+                              errorbar_color="magenta",
+                              overlap_region_start=None, overlap_region_end=None):
     """
     Create a plot of the splitting-to-linewidth ratio vs. detuning.
 
@@ -650,7 +642,7 @@ def plot_splitting_ratio_vs_detuning(detuning_array, splitting_ratio_array, opti
     resolved the two peaks are.
 
     Parameters:
-      detuning_array : numpy.ndarray
+      K_array : numpy.ndarray
          Array of detuning values (in GHz) for each double–Lorentzian fit.
       splitting_ratio_array : numpy.ndarray
          Array of the splitting-to-linewidth ratio (dimensionless) for each double fit.
@@ -671,27 +663,27 @@ def plot_splitting_ratio_vs_detuning(detuning_array, splitting_ratio_array, opti
 
     # Plot the data as a scatter plot. (If you have uncertainties for the ratio,
     # you could extend this to an errorbar plot.)
-    ax.plot(detuning_array, splitting_ratio_array, "o", color=errorbar_color, label="Splitting/Linewidth")
+    ax.plot(K_array, splitting_ratio_array, "o", color=errorbar_color, label="Splitting/Linewidth")
 
     # Draw a vertical line at Δ = 2J.
-    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
     if overlap_region_end is not None:
         ax.axvline(x=overlap_region_end, color="black", linestyle="--")
 
-    ax.set_xlabel("Detuning Δ (GHz)", fontsize=14)
+    ax.set_xlabel("K (GHz)", fontsize=14)
     ax.set_ylabel("Splitting / Average Linewidth", fontsize=14)
-    ax.set_title("Peak Resolving Ratio vs. Detuning", fontsize=16)
+    ax.set_title("Peak Resolving Ratio vs. K", fontsize=16)
     ax.grid(True)
     ax.legend(loc="best")
     plt.tight_layout()
 
     if experiment_id is not None:
-        plot_filename = f"splitting_ratio_vs_detuning_exp_{experiment_id}.png"
+        plot_filename = f"splitting_ratio_vs_K_exp_{experiment_id}.png"
     else:
-        plot_filename = "splitting_ratio_vs_detuning.png"
+        plot_filename = "splitting_ratio_vs_K.png"
     plot_path = os.path.join(output_folder, plot_filename)
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
-    print(f"Saved splitting ratio vs. detuning plot to {plot_path}")
+    print(f"Saved splitting ratio vs. K plot to {plot_path}")

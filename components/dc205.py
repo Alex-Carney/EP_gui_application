@@ -109,7 +109,7 @@ class SRSDC205(PowerSupply, Instrument):
         @current.setter
         def current(self, newval):
             newval = assume_units(newval, u.amp).to(u.amp).magnitude
-            self.mode = self._parent.Mode.current
+            self.mode = self._parent.Mode.voltage
             self._parent.sendcmd(f"SA{newval};")
             self._parent.trigger()
 
@@ -194,7 +194,7 @@ class SRSDC205(PowerSupply, Instrument):
 
     @current.setter
     def current(self, newval):
-        self.channel[0].current = newval
+        self.channel[0].voltage = newval
 
     # METHODS #
 

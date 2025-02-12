@@ -81,7 +81,7 @@ class CurrentControlPanel(QWidget):
         if self.cs is not None:
             with self.lock:
                 try:
-                    current = self.cs.current.get()
+                    current = self.cs.voltage.get()
                     # Ensure current is treated as a float
                     self.current_value = float(current)
                     self.current_display.setText(f"{self.current_value:.6e}")  # Correct format for display
@@ -93,7 +93,7 @@ class CurrentControlPanel(QWidget):
             with self.lock:
                 new_current = float(self.current_value) + float(self.step_size)
                 try:
-                    self.cs.current.set(new_current)
+                    self.cs.voltage.set(new_current)
                     self.current_value = new_current
                     self.current_display.setText(f"{new_current:.6e}")
                 except Exception as e:
@@ -104,7 +104,7 @@ class CurrentControlPanel(QWidget):
             with self.lock:
                 new_current = float(self.current_value) - float(self.step_size)  # Convert to float before subtraction
                 try:
-                    self.cs.current.set(new_current)
+                    self.cs.voltage.set(new_current)
                     self.current_value = new_current
                     self.current_display.setText(f"{new_current:.6e}")
                 except Exception as e:

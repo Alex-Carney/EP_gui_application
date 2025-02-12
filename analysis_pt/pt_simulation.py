@@ -17,9 +17,10 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import symbolic_module as sm
+from scipy.signal import find_peaks
 
 # You can adjust this if you want a different DPI.
-SAVE_DPI = 300
+SAVE_DPI = 400
 
 
 def simulate_trace(J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs):
@@ -43,7 +44,7 @@ def simulate_trace(J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs):
     return sim_trace
 
 
-def setup_fast_simulation(drive=(1, 0), readout=(1, 0)):
+def setup_fast_simulation(drive=(1, 0), readout=(0, 1)):
     """
     Wrapper that calls your new 'setup_fast_transmission_function'
     and returns the resulting function.
@@ -51,9 +52,52 @@ def setup_fast_simulation(drive=(1, 0), readout=(1, 0)):
     return sm.setup_fast_transmission_function(drive=drive, readout=readout)
 
 
+def run_single_theory_shot_fast(
+        fast_func,
+        J_val, J_val_unc,
+        omega_c, omega_c_unc,
+        omega_y, omega_y_unc,
+        kappa_c, kappa_c_unc,
+        kappa_y, kappa_y_unc,
+        nr_freqs,
+):
+    """
+    Perform one Monte Carlo shot:
+    1. Draw random parameters
+    2. Simulate the NR trace
+    3. Find peaks
+    4. Sort them and return as a length-2 list [lower, upper].
+    """
+    J_val_sim = np.random.normal(J_val, J_val_unc)
+    omega_c_sim = np.random.normal(omega_c, omega_c_unc)
+    omega_y_sim = np.random.normal(omega_y, omega_y_unc)
+    kappa_c_sim = np.random.normal(kappa_c, kappa_c_unc)
+    kappa_y_sim = np.random.normal(kappa_y, kappa_y_unc)
+
+    sim_trace = fast_simulate_trace(
+        fast_func,
+        J_val_sim, omega_c_sim, omega_y_sim, kappa_c_sim, kappa_y_sim,
+        nr_freqs / 1e9,
+        )
+
+    sim_peaks_idx, _ = find_peaks(sim_trace, prominence=0.00001)
+    peak_freqs = nr_freqs[sim_peaks_idx] / 1e9
+    peak_freqs.sort()
+
+    if len(peak_freqs) == 2:
+        return list(peak_freqs)  # [lower, upper]
+    elif len(peak_freqs) == 1:
+        # Return a double of the single peak
+        return [peak_freqs[0], peak_freqs[0]]
+    else:
+        # No peaks found
+        print("WARNING: No peaks found in the simulation.")
+        return [np.nan, np.nan]
+
+
 def fast_simulate_trace(
         fast_func,  # the lambdified function from setup_fast_simulation()
-        J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs, phi_val=np.deg2rad(180)
+        J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs, phi_val=np.deg2rad(180),
 ):
     """
     Evaluate the transmitted amplitude^2 (photon number)
