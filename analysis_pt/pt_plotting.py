@@ -335,7 +335,8 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
     # Tidy up plot ranges, in case some shading is out of range
     y_min = min(peak_array.min(), theory_lower_min_array.min(), theory_upper_min_array.min())
     y_max = max(peak_array.max(), theory_lower_max_array.max(), theory_upper_max_array.max())
-    ax.set_ylim(y_min, 6.00725)
+    # ax.set_ylim(y_min, 6.00725)
+    ax.set_ylim(y_min, y_max)
 
     ax.grid(False)
     # Move the legend to the bottom left and make it opaque.
