@@ -4,9 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
+plt.rcParams["font.family"] = "Arial"
+plt.rcParams["font.weight"] = "bold"
+
 
 def plot_individual_trace(voltage_value, frequencies, power_dbm, readout_type, base_folder, fit_data,
-                          detuning_val=None, order_prefix="", simulated_trace=None, simulated_trace_peak_idxs=None,
+                          K_val=None, order_prefix="", simulated_trace=None, simulated_trace_peak_idxs=None,
                           simulated_vertical_offset=None,
                           peak1_lower_bound=None,
                           peak1_upper_bound=None,
@@ -117,9 +120,9 @@ def plot_individual_trace(voltage_value, frequencies, power_dbm, readout_type, b
 
     title = f"{readout_type.capitalize()} Trace at {voltage_value} A"
     file_suffix = f"{voltage_value}"
-    if readout_type.lower() in ["nr", "normal"] and detuning_val is not None:
-        title += f", Detuning = {detuning_val} GHz"
-        file_suffix += f"_Delta_{detuning_val}"
+    if readout_type.lower() in ["nr", "normal"] and K_val is not None:
+        title += f", K = {K_val} GHz"
+        file_suffix += f"_K_{K_val}"
 
     if simulated_trace is not None:
         ax.plot(freqs_ghz, simulated_trace - simulated_vertical_offset, "g--", label="Theory")
@@ -148,11 +151,11 @@ def plot_individual_trace(voltage_value, frequencies, power_dbm, readout_type, b
     plt.tight_layout()
 
     import os  # Ensure os is imported if not already
-    plot_filename = f"{order_prefix}{readout_type}_trace_current_{file_suffix}.png"
+    plot_filename = f"{order_prefix}{readout_type}_trace_voltage_{file_suffix}.png"
     plot_path = os.path.join(folder, plot_filename)
     plt.savefig(plot_path, dpi=300)
     plt.close(fig)
-    print(f"Saved individual {readout_type} trace plot for current = {voltage_value} A to {plot_path}")
+    print(f"Saved individual {readout_type} trace plot for voltage = {voltage_value} A to {plot_path}")
 
 
 def ensure_debug_folder(base_folder, readout_type):
@@ -257,7 +260,12 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
                          optimal_J, K_array,
                          peak_array, peak_unc_array, experiment_id, overlay_folder,
                          theory_upper_min_array, theory_upper_max_array,
-                         overlap_region_start=None, overlap_region_end=None, errorbar_color="red", filename_prepend=""):
+                         overlap_region_start=None, overlap_region_end=None, errorbar_color="red", filename_prepend="", kappa_cavity=None):
+    # Define font sizes
+    label_fs = 22
+    legend_fs = 12
+    tick_fs = 20
+
     # Now create the plot
     fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -282,7 +290,11 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
     )
 
     # Add a vertical line at -2*J
-    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δκ = 2J")
+
+    if kappa_cavity is not None:
+        ax.axvline(-np.sqrt(2 * optimal_J**2 - kappa_cavity**2) + kappa_cavity, color="cyan", linestyle="--", label="$\Delta \kappa = -\sqrt{2J^2 - \kappa_c^2} + \kappa_c$")
+
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
     if overlap_region_end is not None:
@@ -292,8 +304,9 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
     # Add a shaded region that covers the largest 50 values of detuning (X points)
     # This is to highlight the region where the NR peaks are most likely to be found
     # First, determine the 50 largest detuning values from the experimental data.
-    if len(K_array) >= 50:
-        largest_50_K = np.sort(K_array)[-50:]
+    REGION_SIZE = 50
+    if len(K_array) >= REGION_SIZE:
+        largest_50_K = np.sort(K_array)[-REGION_SIZE:]
     else:
         largest_50_K = K_array
 
@@ -313,22 +326,24 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
                 capsize=4, label="NR Hybridized Peaks (Data)",
                 markersize=2, color="black")
 
-    ax.set_xlabel("K (GHz)", fontsize=14)
-    ax.set_ylabel("Peak Frequency (GHz)", fontsize=14)
-    ax.set_title("NR Peak Locations vs. K", fontsize=14)
+    ax.set_xlabel("Δκ [GHz]", fontsize=label_fs, fontweight="bold")
+    ax.set_ylabel("Peak Frequency [GHz]", fontsize=label_fs, fontweight="bold")
+
+    # Set tick label font size
+    ax.tick_params(axis='both', which='major', labelsize=tick_fs)
 
     # Tidy up plot ranges, in case some shading is out of range
     y_min = min(peak_array.min(), theory_lower_min_array.min(), theory_upper_min_array.min())
     y_max = max(peak_array.max(), theory_lower_max_array.max(), theory_upper_max_array.max())
-    ax.set_ylim(y_min, y_max)
+    ax.set_ylim(y_min, 6.00725)
 
-    ax.grid(True)
+    ax.grid(False)
     # Move the legend to the bottom left and make it opaque.
-    ax.legend(loc="lower left", framealpha=1)
+    ax.legend(loc="lower left", framealpha=1, fontsize=legend_fs)
     plt.tight_layout()
 
     overlay_plot_path = os.path.join(overlay_folder, f"{filename_prepend}nr_peaks_overlay_exp_{experiment_id}.png")
-    plt.savefig(overlay_plot_path, dpi=300)
+    plt.savefig(overlay_plot_path, dpi=400)
     plt.close(fig)
     print("Saved NR peaks overlay plot to", overlay_plot_path)
 
@@ -342,26 +357,41 @@ def plot_fig3_PT(pt_power_grid, voltages, frequencies, K_df, experiment_id, sett
                  smoothing_window=50, deriv_ylim=None, optimal_J=None):
     """
     Create a two-panel figure with a colorplot on top and a 2D trace plot below.
-    The figure is formatted with minimal whitespace, no titles, a shared colorbar on the right,
-    an x-axis label of '$\Delta \kappa$ [GHz]', and larger text for all labels, ticks, and legends.
+    The figure is formatted with minimal whitespace, a shared colorbar (only spanning the top
+    subplot), and legends with opaque borders. The naming conventions for the lines are updated:
+
+      Top plot:
+         - Red horizontal line:   f_EP = {target_center} GHz
+         - Blue horizontal line:  f_UB = {target_plus} GHz
+         - Green horizontal line: f_LB = {target_minus} GHz
+
+      Bottom plot (only solid lines are labeled):
+         - Red:   S_{21} (f = f_EP = {target_center} GHz)
+         - Blue:  S_{21} (f = f_UB = {target_plus} GHz)
+         - Green: S_{21} (f = f_LB = {target_minus} GHz)
+
+    Additionally, if optimal_J is provided, a vertical line at Δ = -2 * optimal_J is drawn in neon green
+    (hex: #39FF14) in both plots and labeled as "EP Line".
+
+    The shared x-axis is labeled as '$\Delta \kappa$ [GHz]'. All text is enlarged for a publication-ready appearance.
     """
 
     # -------------------------
     # Prepare the colorplot data
     # -------------------------
-    # Create a mapping from voltage to detuning (K) from the DataFrame.
+    # Map from voltage to detuning (K) using the DataFrame.
     K_map = K_df.set_index("voltage")["K"].to_dict()
     K_values = np.array([K_map.get(c, np.nan) for c in voltages])
     valid_mask = ~np.isnan(K_values)
     pt_power_grid = pt_power_grid[valid_mask, :]
     K_values = K_values[valid_mask]
 
-    # Sort the data by detuning.
+    # Sort by detuning.
     sort_idx = np.argsort(K_values)
     K_sorted = K_values[sort_idx]
     power_grid_sorted = pt_power_grid[sort_idx, :]
 
-    # Compute the edges for the detuning axis for pcolormesh.
+    # Compute edges for pcolormesh along the detuning axis.
     n_rows = len(K_sorted)
     K_edges = np.zeros(n_rows + 1)
     if n_rows > 1:
@@ -372,7 +402,7 @@ def plot_fig3_PT(pt_power_grid, voltages, frequencies, K_df, experiment_id, sett
         K_edges[0] = K_sorted[0] - 0.001
         K_edges[1] = K_sorted[0] + 0.001
 
-    # Convert the frequency axis to GHz.
+    # Convert frequency axis to GHz.
     freqs_ghz = frequencies / 1e9
     n_cols = len(freqs_ghz)
     freq_edges = np.zeros(n_cols + 1)
@@ -385,30 +415,30 @@ def plot_fig3_PT(pt_power_grid, voltages, frequencies, K_df, experiment_id, sett
         freq_edges[1] = freqs_ghz[0] + 0.001
 
     # -------------------------
-    # Determine the target frequencies
+    # Determine target frequencies
     # -------------------------
     # avg_single_peak_frequency is assumed to be in GHz.
     target_center = avg_single_peak_frequency
-    target_plus = target_center + frequency_radius   # e.g., +2 MHz (0.002 GHz)
-    target_minus = target_center - frequency_radius    # e.g., -2 MHz (0.002 GHz)
+    target_plus = target_center + frequency_radius  # e.g., +2 MHz = 0.002 GHz
+    target_minus = target_center - frequency_radius  # e.g., -2 MHz = 0.002 GHz
 
-    # Find the indices in the frequency axis closest to each target.
+    # Indices in the frequency axis closest to the target frequencies.
     idx_center = np.argmin(np.abs(freqs_ghz - target_center))
     idx_plus = np.argmin(np.abs(freqs_ghz - target_plus))
     idx_minus = np.argmin(np.abs(freqs_ghz - target_minus))
 
-    # Define colors for the three traces.
+    # Define colors.
     color_center = 'red'
     color_plus = 'blue'
     color_minus = 'green'
+    neon_green = "#39FF14"  # neon green for the vertical line
 
     # -------------------------
     # Create the figure with 2 vertical subplots.
     # -------------------------
-    # Define font sizes for a consistent, publication-ready look.
-    label_fs = 18      # axis labels and colorbar label
-    tick_fs = 16       # tick labels
-    legend_fs = 16     # legend text
+    label_fs = 22  # Axis labels and colorbar label
+    tick_fs = 20  # Tick labels
+    legend_fs = 20  # Legend text
 
     fig, axes = plt.subplots(nrows=2, sharex=True, figsize=(10, 15))
     ax0, ax1 = axes
@@ -416,61 +446,77 @@ def plot_fig3_PT(pt_power_grid, voltages, frequencies, K_df, experiment_id, sett
     # -- Top subplot: Colorplot --
     im = ax0.pcolormesh(K_edges, freq_edges, power_grid_sorted.T,
                         shading="auto", cmap="inferno")
-    # Remove the title and adjust the y-axis label.
     ax0.set_ylabel("Frequency (GHz)", fontsize=label_fs)
     ax0.tick_params(axis='both', which='major', labelsize=tick_fs)
 
-    # Draw horizontal dotted lines at the target frequencies.
+    # Draw horizontal lines with updated labels.
     ax0.axhline(target_center, color=color_center, linestyle='--',
-                linewidth=2, label='Center Frequency')
+                linewidth=2, label=f"$f_{{EP}} = {target_center:.4f}\\;$ GHz")
     ax0.axhline(target_plus, color=color_plus, linestyle='--',
-                linewidth=2, label='Center + 2 MHz')
+                linewidth=2, label=f"$f_{{UB}} = {target_plus:.4f}\\;$ GHz")
     ax0.axhline(target_minus, color=color_minus, linestyle='--',
-                linewidth=2, label='Center - 2 MHz')
-    # Place the legend in the lower left with larger text.
-    ax0.legend(loc='lower left', fontsize=legend_fs, frameon=False)
+                linewidth=2, label=f"$f_{{LB}} = {target_minus:.4f}\\;$ GHz")
+
+    # Add vertical line for EP Line if optimal_J is provided.
+    if optimal_J is not None:
+        ax0.axvline(-2 * optimal_J, color=neon_green, linestyle="--",
+                    linewidth=2, label="EP Line")
+
+    # Legend with opaque frame.
+    leg0 = ax0.legend(loc='lower left', fontsize=legend_fs, frameon=True)
+    leg0.get_frame().set_alpha(1.0)
 
     # -- Bottom subplot: 2D Trace Plot --
-    # Extract traces at the target frequency indices.
+    # Extract traces for the three frequency indices.
     trace_center = power_grid_sorted[:, idx_center]
     trace_plus = power_grid_sorted[:, idx_plus]
     trace_minus = power_grid_sorted[:, idx_minus]
 
-    # Smooth the traces using the Savitzky–Golay filter.
+    # Smooth the traces.
     if smoothing_window % 2 == 0:
-        smoothing_window += 1  # ensure window length is odd
+        smoothing_window += 1  # ensure odd window length
     smoothed_center = savgol_filter(trace_center, smoothing_window, 2)
     smoothed_plus = savgol_filter(trace_plus, smoothing_window, 2)
     smoothed_minus = savgol_filter(trace_minus, smoothing_window, 2)
 
-    # Plot the original (solid) and smoothed (dashed) traces.
-    ax1.plot(K_sorted, trace_center, color=color_center, label='Center Frequency')
-    ax1.plot(K_sorted, trace_plus, color=color_plus, label='Center + 2 MHz')
-    ax1.plot(K_sorted, trace_minus, color=color_minus, label='Center - 2 MHz')
-    ax1.plot(K_sorted, smoothed_center, color=color_center, linestyle='--',
-             label='Center Frequency (Smoothed)')
-    ax1.plot(K_sorted, smoothed_plus, color=color_plus, linestyle='--',
-             label='Center + 2 MHz (Smoothed)')
-    ax1.plot(K_sorted, smoothed_minus, color=color_minus, linestyle='--',
-             label='Center - 2 MHz (Smoothed)')
+    # Plot the solid (original) traces with labels.
+    ax1.plot(K_sorted, trace_center, color=color_center,
+             label=f"$S_{{21}} (f = f_{{EP}})$")
+    ax1.plot(K_sorted, trace_plus, color=color_plus,
+             label=f"$S_{{21}} (f = f_{{UB}})$")
+    ax1.plot(K_sorted, trace_minus, color=color_minus,
+             label=f"$S_{{21}} (f = f_{{LB}})$")
+
+    # Plot the smoothed (dashed) traces without labels.
+    ax1.plot(K_sorted, smoothed_center, color=color_center, linestyle='--')
+    ax1.plot(K_sorted, smoothed_plus, color=color_plus, linestyle='--')
+    ax1.plot(K_sorted, smoothed_minus, color=color_minus, linestyle='--')
+
     ax1.set_ylabel("Power (dBm)", fontsize=label_fs)
     ax1.set_xlabel(r'$\Delta \kappa$ [GHz]', fontsize=label_fs)
     ax1.tick_params(axis='both', which='major', labelsize=tick_fs)
-    ax1.grid(True)
-    # Place the legend in the lower left with enlarged text.
-    ax1.legend(loc='lower left', fontsize=legend_fs, frameon=False)
 
-    # (Optional) If optimal_J is provided, draw a vertical line in the trace plot.
+    # Add vertical line for EP Line if optimal_J is provided.
     if optimal_J is not None:
-        ax1.axvline(-2 * optimal_J, color="red", linestyle="--", label="Δ = 2J")
+        ax1.axvline(-2 * optimal_J, color=neon_green, linestyle="--",
+                    linewidth=2, label="EP Line")
+
+    leg1 = ax1.legend(loc='lower left', fontsize=legend_fs, frameon=True)
+    leg1.get_frame().set_alpha(1.0)
 
     # -------------------------
-    # Create a colorbar for the entire figure.
+    # Create a colorbar for the top subplot only.
     # -------------------------
-    # Adjust the right side of the figure to make room for the colorbar.
+    # Adjust the right margin to make room for the colorbar.
     fig.subplots_adjust(right=0.85)
-    # The colorbar spans the full height of the figure (with a small margin).
-    cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
+    # Get the position of the top axis.
+    pos0 = ax0.get_position()
+    # Create a colorbar that spans only the top half of ax0.
+    cbar_x = pos0.x1 + 0.01
+    cbar_y = pos0.y0 + pos0.height / 2  # start at the mid-point vertically
+    cbar_width = 0.03
+    cbar_height = pos0.height / 2
+    cbar_ax = fig.add_axes([cbar_x, cbar_y, cbar_width, cbar_height])
     cbar = fig.colorbar(im, cax=cbar_ax)
     cbar.set_label("Power (dBm)", fontsize=label_fs)
     cbar.ax.tick_params(labelsize=tick_fs)
@@ -478,7 +524,6 @@ def plot_fig3_PT(pt_power_grid, voltages, frequencies, K_df, experiment_id, sett
     # -------------------------
     # Final layout adjustments and save the figure.
     # -------------------------
-    # Remove extra whitespace while preserving the colorbar.
     plt.tight_layout(rect=[0, 0, 0.85, 1])
 
     os.makedirs(fig3_folder, exist_ok=True)

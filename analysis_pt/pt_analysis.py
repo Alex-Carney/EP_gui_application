@@ -11,7 +11,7 @@ import pt_voltage_data_loader as pt_data
 import pt_fitting as pt_fit
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
-CONFIG_NAME = "dec_data"
+CONFIG_NAME = "cab_nr2"
 CAV_YIG_DEBUG = False
 NR_DEBUG = False
 
@@ -60,6 +60,10 @@ def main():
     raw_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_NR_EP_raw")
     pt_plot.plot_raw_colorplot(pt_power, nr_voltages, pt_freqs, experiment_id, nr_settings,
                                raw_folder, readout_type=readout_type)
+    pt_plot.plot_raw_colorplot(yig_power, yig_voltages, yig_freqs, experiment_id, nr_settings,
+                               raw_folder, readout_type='yig')
+    pt_plot.plot_raw_colorplot(cavity_power, cavity_voltages, cavity_freqs, experiment_id, nr_settings,
+                               raw_folder, readout_type='cavity')
 
     # ------------------ CAVITY/YIG TRACES PLOTTING (OPTIONAL) ------------------
     if CAV_YIG_DEBUG:
@@ -72,8 +76,10 @@ def main():
                 pt_plot.plot_individual_trace(v, freqs, trace, rt, debug_folder, fit_data)
 
     # ------------------ CAVITY/YIG TRACES ANALYSIS - MEASURING DETUNING ------------------
-    cavity_results = pt_fit.process_all_traces(cavity_power, cavity_voltages, cavity_freqs, peak_selection_option="amplitude")
-    yig_results = pt_fit.process_all_traces(yig_power, yig_voltages, yig_freqs, apply_pre_smoothing=True, peak_selection_option="amplitude")
+    cavity_results = pt_fit.process_all_traces(cavity_power, cavity_voltages, cavity_freqs,
+                                               peak_selection_option="amplitude")
+    yig_results = pt_fit.process_all_traces(yig_power, yig_voltages, yig_freqs, apply_pre_smoothing=True,
+                                            peak_selection_option="amplitude")
     cavity_df = pd.DataFrame(cavity_results)
     yig_df = pd.DataFrame(yig_results)
     K_df = pt_fit.compute_K(cavity_df, yig_df)
@@ -122,7 +128,8 @@ def main():
 
         all_peak_freqs = np.array(all_peak_freqs)  # shape: (NUM_SIMULATION_SHOTS, 2)
         # Simulate the "average" trace for an initial guess
-        sim_trace_avg = pt_sim.simulate_trace(config.optimal_J, omega_c, omega_y, kappa_c, kappa_y, pt_freqs / 1e9)
+        sim_trace_avg = pt_sim.simulate_trace(config.optimal_J, omega_c, omega_y, kappa_c, kappa_y, pt_freqs / 1e9,
+                                              readout=[1, 0] if readout_type == "normal" else [0, 1])
         sim_peaks_idx_avg, _ = find_peaks(sim_trace_avg, prominence=0.0001)
 
         # Determine the min/max for the lower and upper peak across all shots
@@ -156,7 +163,7 @@ def main():
                 readout_type,
                 debug_folder,
                 fit_data,
-                detuning_val=K_map[v],
+                K_val=K_map[v],
                 order_prefix=order_prefix,
                 simulated_trace=sim_trace_avg,
                 simulated_trace_peak_idxs=sim_peaks_idx_avg,
@@ -244,6 +251,31 @@ def main():
     theory_upper_min_array = theory_upper_min_array[sort_idx]
     theory_upper_max_array = theory_upper_max_array[sort_idx]
 
+    # Get the kappa_C from the data
+    cavity_kappa_values = cavity_df["kappa"].values
+    yig_kappa_values = yig_df["kappa"].values
+    average_kappa = np.mean(cavity_kappa_values)
+
+    # Get the average Delta from the data
+    cavity_freq_values = cavity_df["omega"].values
+    yig_freq_values = yig_df["omega"].values
+
+    cavity_freq = np.mean(cavity_freq_values)
+    yig_freq = np.mean(yig_freq_values)
+
+    delta_values = cavity_freq_values - yig_freq_values
+
+    print("\n Average kappa_C:", average_kappa)
+    # print the average and stderr of delta_values
+    print("Average delta:", np.mean(delta_values))
+    print("Standard deviation of delta:", np.std(delta_values))
+    print("Cavity freq average: ", cavity_freq)
+    print("Yig freq average: ", yig_freq)
+
+    print("max yig kappa: ", np.max(yig_kappa_values))
+    print("min yig kappa: ", np.min(yig_kappa_values))
+    print("average yig kappa: ", np.mean(yig_kappa_values))
+
     pt_plot.plot_final_peak_plot(
         theory_K_array=theory_K_array,
         theory_lower_min_array=theory_lower_min_array,
@@ -258,7 +290,8 @@ def main():
         peak_unc_array=peak_unc_array,
         overlap_region_start=config.overlap_region_start,
         overlap_region_end=config.overlap_region_end,
-        errorbar_color="red"
+        errorbar_color="red",
+        kappa_cavity=average_kappa,
     )
 
     # Plot the final plot again, but use Linewidths for the errorbar values instead

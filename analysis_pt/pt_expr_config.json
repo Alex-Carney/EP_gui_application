@@ -1,31 +1,478 @@
 {
-"dec_data": {
-"name": "DefaultConfig",
-"description": "Experiment parameters for NR measurement",
-"experiment_id":  "adf1420f-9206-404b-8c8a-a680dc9d41b2",
-"frequency_limits": {
-"colorplot": {
-"min": 6.0175e9,
-"max": 6.021e9
+  "dec_data": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "adf1420f-9206-404b-8c8a-a680dc9d41b2",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0175e9,
+        "max": 6.021e9
+      },
+      "cavity": {
+        "min": 6.01875e9,
+        "max": 6.02e9
+      },
+      "yig": {
+        "min": 6.01875e9,
+        "max": 6.02e9
+      }
+    },
+    "voltage_limits": {
+      "min": -2.8,
+      "max": -1.6
+    },
+    "db_path": "../databases/12_12_ovn_one.db",
+    "optimal_J": 0.0006493929112908194,
+    "optimal_J_unc": 0.000230,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2.409,
+    "readout_type": "normal"
+  },
+  "sat": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "9a21d76b-5096-4ea9-92ad-6c2551e613af",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.009e9
+      },
+      "cavity": {
+        "min": 6.0055e9,
+        "max": 6.0075e9
+      },
+      "yig": {
+        "min": 6.0055e9,
+        "max": 6.008e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_LOTS_STUFF.db",
+    "optimal_J": 0.000846,
+    "optimal_J_unc": 0.000112,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 3,
+    "readout_type": "nr"
+  },
+  "control1": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "e98f3871-c0aa-4e79-ac5e-98c262a7547f",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_FIRST_TRY.db",
+    "optimal_J": 0.000897,
+    "optimal_J_unc": 0.000050,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "wethemboys": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "4d9ae707-aab4-4fda-a622-b58412705ea6",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_BIG_TRY.db",
+    "optimal_J": 0.000855,
+    "optimal_J_unc": 0.000010,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "wethemboys2": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "c03d0310-8100-40ac-808c-584849fb4ef7",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_BIG_TRY.db",
+    "optimal_J": 0.000859,
+    "optimal_J_unc": 0.000013,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "wethemboys3": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "044f0cd6-b4b7-4ba0-9aa4-66ddc5a17f9c",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_BIG_TRY.db",
+    "optimal_J": 0.000842,
+    "optimal_J_unc": 0.000026,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "sofia": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "c27a1f54-8e39-4328-ac35-14d2064df491",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_BETTER_PHASE.db",
+    "optimal_J": 0.000842,
+    "optimal_J_unc": 0.000026,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "sofia2": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "4ff4d5f0-6b89-4ae7-920c-6572fa8461b2",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_BETTER_PHASE.db",
+    "optimal_J": 0.000842,
+    "optimal_J_unc": 0.000026,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "sofia3": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "09a57616-99ec-4af4-858e-0a00570508ba",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_BETTER_PHASE.db",
+    "optimal_J": 0.000842,
+    "optimal_J_unc": 0.000026,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 2,
+    "readout_type": "nr"
+  },
+  "daone": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "3cac3db5-62ab-47b5-81da-c3a22dafce31",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_LOW_PHASE.db",
+    "optimal_J": 0.000991,
+    "optimal_J_unc": 0.000033,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 1,
+    "readout_type": "normal"
+  },
+  "daone_nr": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "76592a1d-b0f3-4402-8f46-25c062f94ac1",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0085e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_LOW_PHASE.db",
+    "optimal_J": 0.000819,
+    "optimal_J_unc": 0.000154,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 1,
+    "readout_type": "nr"
+  },
+  "daone2": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "fc945234-70e1-4887-a709-d31c645c4924",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0080e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_LOW_PHASE.db",
+    "optimal_J": 0.000997,
+    "optimal_J_unc": 0.000020,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 1,
+    "readout_type": "normal",
+    "overlap_region_start": -0.0025,
+    "overlap_region_end": -0.00282
+  },
+  "cab": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "cab5729f-0491-41f9-9fc8-acf0096754ab",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0080e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_FOR_NR.db",
+    "optimal_J": 0.001010,
+    "optimal_J_unc": 2.4e-05,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 1,
+    "readout_type": "normal",
+    "overlap_region_start": -0.0025,
+    "overlap_region_end": -0.00282
+  },
+  "cab_nr": {
+  "name": "DefaultConfig",
+  "description": "Experiment parameters for NR measurement",
+  "experiment_id": "cab5729f-0491-41f9-9fc8-acf0096754ab",
+  "frequency_limits": {
+    "colorplot": {
+      "min": 6.00425e9,
+      "max": 6.00825e9
+    },
+    "cavity": {
+      "min": 6.002e9,
+      "max": 6.01e9
+    },
+
+    "yig": {
+      "min": 6.002e9,
+      "max": 6.01e9
+    }
+  },
+  "voltage_limits": {
+    "min": -3,
+    "max": -2
+  },
+  "db_path": "../databases/PT_CONTROL_TRY_FOR_NR.db",
+  "optimal_J": 0.000863,
+  "optimal_J_unc": 2.4e-05,
+  "simulated_vertical_offset": 10.5,
+  "amplitude_threshold_overfitting": 1,
+  "readout_type": "nr",
+  "overlap_region_start": -0.0025,
+  "overlap_region_end": -0.00282
 },
-"cavity": {
-"min": 6.01875e9,
-"max": 6.02e9
-},
-"yig": {
-  "min": 6.01875e9,
-  "max": 6.02e9
-}
-},
-"voltage_limits": {
-"min": -2.8,
-"max": -1.6
-},
-"db_path": "../databases/12_12_ovn_one.db",
-"optimal_J": 0.0006493929112908194,
-"optimal_J_unc": 0.000230,
-"simulated_vertical_offset": 10.5,
-"amplitude_threshold_overfitting": 2.409,
-"readout_type": "normal"
-}
+  "cab_nr2": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "cab5729f-0491-41f9-9fc8-acf0096754ab",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.00425e9,
+        "max": 6.00825e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_FOR_NR.db",
+    "optimal_J": 0.001010,
+    "optimal_J_unc": 2.4e-05,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 1,
+    "readout_type": "nr",
+    "overlap_region_start": -0.0025,
+    "overlap_region_end": -0.00282
+  },
+  "2dad": {
+    "name": "DefaultConfig",
+    "description": "Experiment parameters for NR measurement",
+    "experiment_id": "2dad5ea4-1b5c-4613-882c-07458722088f",
+    "frequency_limits": {
+      "colorplot": {
+        "min": 6.0045e9,
+        "max": 6.0080e9
+      },
+      "cavity": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      },
+      "yig": {
+        "min": 6.002e9,
+        "max": 6.01e9
+      }
+    },
+    "voltage_limits": {
+      "min": -3,
+      "max": -2
+    },
+    "db_path": "../databases/PT_CONTROL_TRY_FOR_NR.db",
+    "optimal_J": 0.001016,
+    "optimal_J_unc": 0.000012,
+    "simulated_vertical_offset": 10.5,
+    "amplitude_threshold_overfitting": 1,
+    "readout_type": "normal",
+    "overlap_region_start": -0.0025,
+    "overlap_region_end": -0.00282
+  }
 }

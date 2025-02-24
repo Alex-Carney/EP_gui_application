@@ -12,8 +12,8 @@ import nr_fitting as nr_fit
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
 CONFIG_NAME = "hailey_friday_normal"
-CAV_YIG_DEBUG = False
-NR_DEBUG = False
+CAV_YIG_DEBUG = True
+NR_DEBUG = True
 
 # ------------------ TOP LEVEL CONFIGURATION ------------------
 NUM_SIMULATION_SHOTS = 1250
@@ -60,6 +60,10 @@ def main():
     raw_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_NR_EP_raw")
     nr_plot.plot_raw_colorplot(nr_power, nr_currents, nr_freqs, experiment_id, nr_settings,
                                raw_folder, readout_type=readout_type)
+    nr_plot.plot_raw_colorplot(yig_power, yig_currents, yig_freqs, experiment_id, nr_settings,
+                               raw_folder, readout_type='yig')
+    nr_plot.plot_raw_colorplot(cavity_power, cavity_currents, cavity_freqs, experiment_id, nr_settings,
+                               raw_folder, readout_type='cavity')
 
     # ------------------ CAVITY/YIG TRACES PLOTTING (OPTIONAL) ------------------
     if CAV_YIG_DEBUG:
@@ -123,7 +127,8 @@ def main():
 
         all_peak_freqs = np.array(all_peak_freqs)  # shape: (NUM_SIMULATION_SHOTS, 2)
         # Simulate the "average" trace for an initial guess
-        sim_trace_avg = nr_sim.simulate_trace(config.optimal_J, omega_c, omega_y, kappa_c, kappa_y, nr_freqs / 1e9)
+        sim_trace_avg = nr_sim.simulate_trace(config.optimal_J, omega_c, omega_y, kappa_c, kappa_y, nr_freqs / 1e9,
+                                              readout=[0, 1] if readout_type == "nr" else [0, 1])
         sim_peaks_idx_avg, _ = find_peaks(sim_trace_avg, prominence=0.0001)
 
         # Determine the min/max for the lower and upper peak across all shots
@@ -171,6 +176,8 @@ def main():
     # ------------------ NR DETUNING COLORPLOT ------------------
     output_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_NR_EP")
     nr_plot.plot_delta_colorplot(nr_power, nr_currents, nr_freqs, delta_df, experiment_id, nr_settings, output_folder)
+    nr_plot.plot_delta_colorplot(yig_power, nr_currents, yig_freqs, delta_df, experiment_id, nr_settings,
+                                 output_folder, filename_prepend='YIG_')
 
     # ------------------ NR DETUNING PEAK LOCATION PLOT ------------------
     overlay_folder = os.path.join(PLOTS_FOLDER, f"{experiment_id}_nr_peaks")
@@ -245,28 +252,40 @@ def main():
     theory_upper_min_array = theory_upper_min_array[sort_idx]
     theory_upper_max_array = theory_upper_max_array[sort_idx]
 
+    # Extract kappa values from the DataFrames
+    cavity_kappa_values = cavity_df["kappa"].values
+    yig_kappa_values = yig_df["kappa"].values
+
+    # Calculate the average kappa for cavity and YIG
+    avg_cavity_kappa = np.mean(cavity_kappa_values)
+    avg_yig_kappa = np.mean(yig_kappa_values)
+
+    avg_kappa = (avg_cavity_kappa + avg_yig_kappa)/2
+
     nr_plot.plot_final_peak_plot(
-        theory_detuning_array=theory_detuning_array,
-        theory_lower_min_array=theory_lower_min_array,
-        theory_lower_max_array=theory_lower_max_array,
-        optimal_J=config.optimal_J,
-        detuning_array=detuning_array,
-        peak_array=peak_array,
-        experiment_id=experiment_id,
-        overlay_folder=overlay_folder,
-        theory_upper_min_array=theory_upper_min_array,
-        theory_upper_max_array=theory_upper_max_array,
-        peak_unc_array=peak_unc_array,
-        overlap_region_start=config.overlap_region_start,
-        overlap_region_end=config.overlap_region_end,
-        errorbar_color="red"
-    )
+            theory_detuning_array=theory_detuning_array,
+            theory_lower_min_array=theory_lower_min_array,
+            theory_lower_max_array=theory_lower_max_array,
+            optimal_J=config.optimal_J,
+            kappa_val=avg_kappa,
+            detuning_array=detuning_array,
+            peak_array=peak_array,
+            experiment_id=experiment_id,
+            overlay_folder=overlay_folder,
+            theory_upper_min_array=theory_upper_min_array,
+            theory_upper_max_array=theory_upper_max_array,
+            peak_unc_array=peak_unc_array,
+            overlap_region_start=config.overlap_region_start,
+            overlap_region_end=config.overlap_region_end,
+            errorbar_color="red"
+        )
 
     # Plot the final plot again, but use Linewidths for the errorbar values instead
     nr_plot.plot_final_peak_plot(
         theory_detuning_array=theory_detuning_array,
         theory_lower_min_array=theory_lower_min_array,
         theory_lower_max_array=theory_lower_max_array,
+        kappa_val=avg_kappa,
         optimal_J=config.optimal_J,
         detuning_array=detuning_array,
         peak_array=peak_array,
@@ -338,7 +357,15 @@ def main():
         # Plot the figure 3 plot
         nr_plot.plot_fig3(nr_power, nr_currents, nr_freqs, delta_df,
                           experiment_id, nr_settings, avg_single_peak_frequency, fig3_folder,
-                          optimal_J=config.optimal_J, frequency_radius=.002)
+                          optimal_J=config.optimal_J, frequency_radius=.002,
+                          yig_power_grid=yig_power, yig_freqs=yig_freqs)
+
+        # Plot the figure 3 plot
+        nr_plot.plot_research_figure(nr_power, nr_currents, nr_freqs, Delta_df=delta_df,
+                                     experiment_id=experiment_id, settings=nr_settings, avg_single_peak_frequency=avg_single_peak_frequency,
+                                     fig3_folder=fig3_folder, smoothing_window=50, optimal_J=config.optimal_J,
+                                     yig_power_grid=yig_power, yig_freqs=yig_freqs,
+                                     yig_trace_freq=5.990425)
 
     else:
         print("WARNING: No single peaks with detuning less than EP threshold were found.")

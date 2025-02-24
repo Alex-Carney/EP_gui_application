@@ -55,9 +55,10 @@ def double_lorentzian_fit_PT(x, y, guess1, guess2):
 
 # ------------------ DATABASE & SIMULATION SETUP ------------------
 # Hardcoded values:
-db_path = r"C:\Users\AlexPHD\Dartmouth College Dropbox\Alexander Carney\darpa_alex_local\EP_gui_application\databases\12_12_ovn_one.db"
-experiment_id = "adf1420f-9206-404b-8c8a-a680dc9d41b2"
-readout_type = "normal"
+db_path = r"C:\Users\AlexPHD\Dartmouth College Dropbox\Alexander Carney\darpa_alex_local\EP_gui_application\databases\PT_CONTROL_TRY_FOR_NR.db"
+# experiment_id = "cab5729f-0491-41f9-9fc8-acf0096754ab"
+experiment_id = "2dad5ea4-1b5c-4613-882c-07458722088f"
+readout_type = "nr"
 
 # Create engine.
 engine = create_engine(f"sqlite:///{db_path}")
@@ -86,6 +87,8 @@ symbols_dict = setup_symbolic_equations()
 
 # Arrays to store the optimal J values and amplitude differences for each trace.
 optimal_J_values = []
+# NEW: Also store the corresponding voltage for each optimal J.
+optimal_voltage_values = []
 amplitude_differences = []  # New list to hold the amplitude differences (in dBm)
 
 # ------------------ LOOP OVER N VALUES ------------------
@@ -239,6 +242,9 @@ for N in range(N_min, N_max + 1):
     best_J = res.x
     print(f"Optimal J_value found: {best_J:.6f} with cost {res.fun:.3e}")
     optimal_J_values.append(best_J)
+    # NEW: Record the voltage corresponding to this measurement.
+    current_voltage = pivot_table.index[trace_index]
+    optimal_voltage_values.append(current_voltage)
 
     # Recompute simulation trace with the optimal J.
     simulated_trace_opt = simulate_trace(best_J)
@@ -255,8 +261,6 @@ for N in range(N_min, N_max + 1):
     # plt.legend()
     # plt.tight_layout()
     # plt.savefig('EXTREME_simulated_traces.png', dpi=400)
-
-
 
     # Find simulated peaks.
     sim_peaks_idx, _ = find_peaks(simulated_trace_opt, prominence=0.001)
@@ -320,14 +324,39 @@ for N in range(N_min, N_max + 1):
 # ------------------ PRINT OPTIMAL J VALUES SUMMARY ------------------
 if optimal_J_values:
     optimal_J_array = np.array(optimal_J_values)
-    mean_J = np.mean(optimal_J_array)
-    stderr_J = np.std(optimal_J_array)
+    voltage_array = np.array(optimal_voltage_values)
+    # Compute overall statistics with all values.
+    mean_J_all = np.mean(optimal_J_array)
+    stderr_J_all = np.std(optimal_J_array)
     print("\n" + "=" * 40)
-    print("Optimal J values for each N in the range:")
+    print("Optimal J values for each N in the range (including outliers):")
     print(optimal_J_values)
-    print(f"Average optimal J: {mean_J:.6f}")
-    print(f"Median optimal J: {np.median(optimal_J_array):.6f}")
-    print(f"Standard error: {stderr_J:.6f}")
+    print(f"Average optimal J (all): {mean_J_all:.6f}")
+    print(f"Standard error (all): {stderr_J_all:.6f}")
+
+    # ------------------ DETECT OUTLIERS ------------------
+    # Using the interquartile range (IQR) method.
+    Q1 = np.percentile(optimal_J_array, 25)
+    Q3 = np.percentile(optimal_J_array, 75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    for i, j_val in enumerate(optimal_J_array):
+        if j_val < lower_bound or j_val > upper_bound:
+            print(f"Outlier detected: J = {j_val:.6f} at voltage = {voltage_array[i]}")
+
+    # Remove outliers and compute statistics.
+    mask = (optimal_J_array >= lower_bound) & (optimal_J_array <= upper_bound)
+    optimal_J_no_outliers = optimal_J_array[mask]
+    if optimal_J_no_outliers.size > 0:
+        mean_J_no = np.mean(optimal_J_no_outliers)
+        stderr_J_no = np.std(optimal_J_no_outliers)
+        print("\nOptimal J values with outliers removed:")
+        print(optimal_J_no_outliers.tolist())
+        print(f"Average optimal J (no outliers): {mean_J_no:.6f}")
+        print(f"Standard error (no outliers): {stderr_J_no:.6f}")
+    else:
+        print("No optimal J values remain after outlier removal.")
 else:
     print("No optimal J values were found.")
 

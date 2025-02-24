@@ -107,7 +107,7 @@
     },
     "current_limits": {
       "min": -0.007,
-      "max": -0.00315
+      "max": -0.00309
     },
     "db_path": "../databases/NR_R_FRI_OVN_HAILEY.db",
     "optimal_J": 0.008215,

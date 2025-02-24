@@ -23,10 +23,14 @@ from scipy.signal import find_peaks
 SAVE_DPI = 400
 
 
-def simulate_trace(J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs):
+def simulate_trace(J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs, drive=None, readout=None):
     """
     Given a trial J_val, simulate the trace.
     """
+    if readout is None:
+        readout = [0, 1]
+    if drive is None:
+        drive = [1, 0]
     symbols_dict = sm.setup_symbolic_equations()
     sim_params = sm.ModelParams(
         J_val=J_val,
@@ -34,9 +38,9 @@ def simulate_trace(J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs):
         cavity_freq=cavity_freq,
         w_y=w_y,
         gamma_vec=np.array([kappa_c, kappa_y]),
-        drive_vector=np.array([1, 0]),
-        readout_vector=np.array([0, 1]),
-        phi_val=np.deg2rad(180),
+        drive_vector=np.array(drive),
+        readout_vector=np.array(readout),
+        phi_val=np.deg2rad(0),
     )
     nr_ep_ss_eqn = sm.get_steady_state_response_transmission(symbols_dict, sim_params)
     photon_numbers_sim = sm.compute_photon_numbers_transmission(nr_ep_ss_eqn, freqs)
@@ -97,7 +101,7 @@ def run_single_theory_shot_fast(
 
 def fast_simulate_trace(
         fast_func,  # the lambdified function from setup_fast_simulation()
-        J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs, phi_val=np.deg2rad(180),
+        J_val, cavity_freq, w_y, kappa_c, kappa_y, freqs, phi_val=np.deg2rad(0),
 ):
     """
     Evaluate the transmitted amplitude^2 (photon number)
