@@ -295,9 +295,10 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     )
 
     # Add a vertical line at 2*J
-    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label="Δf = 2J")
+    ax.axvline(x=2 * optimal_J, color="red", linestyle="--", label=r'$\Delta f = 2J$')
     # Add a vertical line at 2* sqrt(J**2 + kappa**2)
-    ax.axvline(x=2 * np.sqrt(optimal_J ** 2 + kappa_val ** 2), color="lime", linestyle="--", label="Δf = 2√(J² + κ²)")
+    ax.axvline(x=1 * np.sqrt(4 * optimal_J ** 2 + kappa_val ** 2), color="cyan", linestyle="--",
+               label=r'$\Delta f = \sqrt{4J^2 + \kappa^2}$')
 
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
@@ -325,7 +326,7 @@ def plot_final_peak_plot(theory_detuning_array, theory_lower_min_array, theory_l
     ax.errorbar(detuning_array, peak_array,
                 yerr=peak_unc_array,
                 fmt="o", ecolor=errorbar_color,
-                capsize=4, label="NR Hybridized Peaks (Data)",
+                capsize=4, label="Hybridized Peaks (Data)",
                 markersize=2, color="black")
 
     # Set axis labels with bold font weight

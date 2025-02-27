@@ -441,8 +441,8 @@
     "simulated_vertical_offset": 10.5,
     "amplitude_threshold_overfitting": 1,
     "readout_type": "nr",
-    "overlap_region_start": -0.0025,
-    "overlap_region_end": -0.00282
+    "overlap_region_start": -0.0009,
+    "overlap_region_end": -0.001125
   },
   "2dad": {
     "name": "DefaultConfig",

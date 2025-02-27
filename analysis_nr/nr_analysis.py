@@ -12,8 +12,8 @@ import nr_fitting as nr_fit
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
 CONFIG_NAME = "hailey_friday_normal"
-CAV_YIG_DEBUG = True
-NR_DEBUG = True
+CAV_YIG_DEBUG = False
+NR_DEBUG = False
 
 # ------------------ TOP LEVEL CONFIGURATION ------------------
 NUM_SIMULATION_SHOTS = 1250

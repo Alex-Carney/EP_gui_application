@@ -124,8 +124,8 @@ def compute_K(cavity_df, yig_df):
     yig_df = yig_df.rename(columns={"omega": "omega_y", "omega_unc": "omega_y_unc",
                                     "kappa": "kappa_y", "kappa_unc": "kappa_y_unc"})
     merged = cavity_df.merge(yig_df, on="voltage", how="inner")
-    merged["K"] = merged["kappa_c"] - merged["kappa_y"]
-    merged["K_unc"] = np.sqrt(merged["kappa_c_unc"] ** 2 + merged["kappa_y_unc"] ** 2)
+    merged["K"] = merged["kappa_c"]/2 - merged["kappa_y"]/2
+    merged["K_unc"] = (1/2) * np.sqrt(merged["kappa_c_unc"] ** 2 + merged["kappa_y_unc"] ** 2)
     return merged
 
 

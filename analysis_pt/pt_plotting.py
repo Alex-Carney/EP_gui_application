@@ -153,7 +153,7 @@ def plot_individual_trace(voltage_value, frequencies, power_dbm, readout_type, b
     import os  # Ensure os is imported if not already
     plot_filename = f"{order_prefix}{readout_type}_trace_voltage_{file_suffix}.png"
     plot_path = os.path.join(folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved individual {readout_type} trace plot for voltage = {voltage_value} A to {plot_path}")
 
@@ -222,7 +222,7 @@ def plot_K_colorplot(nr_power_grid, voltages, frequencies, K_df, experiment_id, 
 
     plot_filename = f"PT_colorplot_K_exp_{experiment_id}.png"
     plot_path = os.path.join(base_folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved NR color plot (K) to {plot_path}")
 
@@ -251,7 +251,7 @@ def plot_raw_colorplot(power_grid, voltages, frequencies, experiment_id, setting
 
     plot_filename = f"{readout_type}_raw_colorplot_exp_{experiment_id}.png"
     plot_path = os.path.join(base_folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved raw {readout_type.upper()} color plot (current as X-axis) to {plot_path}")
 
@@ -290,10 +290,11 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
     )
 
     # Add a vertical line at -2*J
-    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label="Δκ = 2J")
+    ax.axvline(x=-2 * optimal_J, color="red", linestyle="--", label=r'$\Delta \kappa = -2J$')
 
     if kappa_cavity is not None:
-        ax.axvline(-np.sqrt(2 * optimal_J**2 - kappa_cavity**2) + kappa_cavity, color="cyan", linestyle="--", label="$\Delta \kappa = -\sqrt{2J^2 - \kappa_c^2} + \kappa_c$")
+        plt.axvline(x= kappa_cavity/2 - np.sqrt(8*optimal_J**2 - kappa_cavity**2)/2, color='cyan', linestyle='--', linewidth=2,
+                    label=r'$\Delta \kappa = (\kappa_c - \sqrt{8J^2 - \kappa_c^2})/2$')
 
     if overlap_region_start is not None:
         ax.axvline(x=overlap_region_start, color="black", linestyle="--")
@@ -323,7 +324,7 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
     ax.errorbar(K_array, peak_array,
                 yerr=peak_unc_array,
                 fmt="o", ecolor=errorbar_color,
-                capsize=4, label="NR Hybridized Peaks (Data)",
+                capsize=4, label="Hybridized Peaks (Data)",
                 markersize=2, color="black")
 
     ax.set_xlabel("Δκ [GHz]", fontsize=label_fs, fontweight="bold")
@@ -336,7 +337,7 @@ def plot_final_peak_plot(theory_K_array, theory_lower_min_array, theory_lower_ma
     y_min = min(peak_array.min(), theory_lower_min_array.min(), theory_upper_min_array.min())
     y_max = max(peak_array.max(), theory_lower_max_array.max(), theory_upper_max_array.max())
     # ax.set_ylim(y_min, 6.00725)
-    ax.set_ylim(y_min, y_max)
+    ax.set_ylim(y_min, 6.00726)
 
     ax.grid(False)
     # Move the legend to the bottom left and make it opaque.
@@ -585,7 +586,7 @@ def plot_linewidth_vs_K(K_array, linewidth_array, optimal_J, linewidth_unc_array
     else:
         plot_filename = "linewidth_vs_K.png"
     plot_path = os.path.join(output_folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved linewidth vs. K plot to {plot_path}")
 
@@ -670,7 +671,7 @@ def plot_sum_linewidth_vs_K(K_array, linewidth_array, optimal_J, linewidth_unc_a
     else:
         plot_filename = "avg_linewidth_vs_K.png"
     plot_path = os.path.join(output_folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved average linewidth vs. K plot to {plot_path}")
 
@@ -730,6 +731,6 @@ def plot_splitting_ratio_vs_K(K_array, splitting_ratio_array, optimal_J,
     else:
         plot_filename = "splitting_ratio_vs_K.png"
     plot_path = os.path.join(output_folder, plot_filename)
-    plt.savefig(plot_path, dpi=300)
+    plt.savefig(plot_path, dpi=400)
     plt.close(fig)
     print(f"Saved splitting ratio vs. K plot to {plot_path}")

@@ -204,6 +204,37 @@ def get_cavity_dynamics_eigenvalues_numeric(symbols_dict: ModelSymbolics, params
     return eigenvalues
 
 
+def get_steady_state_response_NR(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
+    """
+    Returns a function that computes the steady-state response for the non-PT symmetric case.
+    """
+    # Unpack symbols
+    w0 = symbols_dict.w0
+    gamma = symbols_dict.gamma
+    F = symbols_dict.F
+    steady_state_eqns = symbols_dict.steady_state_eqns
+
+    # Substitutions for non-PT symmetric case
+    substitutions = {
+        symbols_dict.w0[0]: params.cavity_freq,
+        symbols_dict.w0[1]: symbols_dict.w_y,  # Keep w_y symbolic
+        symbols_dict.J: params.J_val,
+        symbols_dict.g: params.g_val,
+        F[0]: params.drive_vector[0],
+        F[1]: params.drive_vector[1],
+        gamma[0]: params.gamma_vec[0],
+        gamma[1]: params.gamma_vec[1],
+        symbols_dict.phi_val: params.phi_val
+    }
+
+    ss_eqns_instantiated = steady_state_eqns.subs(substitutions)
+    ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
+              params.readout_vector[1] * ss_eqns_instantiated[1])
+
+    # Lambdify with w_y and w_f as variables
+    return sp.lambdify((symbols_dict.w_y, symbols_dict.w_f), ss_eqn, 'numpy')
+
+
 def calculate_theoretical_peak_splittings(symbols_dict, params, K_values):
     """
     Calculate the peak splitting for a range of \( K \) values.
@@ -341,7 +372,7 @@ def setup_fast_transmission_function(drive=(1, 0), readout=(0, 1)):
 def compute_photon_numbers_fast(fast_func,
                                 J_val, w_c_val, w_y_val,
                                 gamma_c_val, gamma_y_val,
-                                phi_val, w_f_array,):
+                                phi_val, w_f_array, ):
     """
     Convenience function that calls the lambdified fast_func and returns
     |transmitted|^2 (photon number).
