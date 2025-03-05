@@ -37,8 +37,7 @@ import nr_simulation as pt_sim
 #   - setup_fast_simulation(...)
 
 # Global simulation switches and parameters
-plt.rcParams["font.family"] = "Arial"
-plt.rcParams["font.weight"] = "bold"
+plt.rcParams["font.family"] = "sans-serif"
 
 
 USE_PARALLEL = False

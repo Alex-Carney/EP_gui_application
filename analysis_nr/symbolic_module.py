@@ -36,6 +36,14 @@ class ModelParams:
                 f"omega_y={self.w_y}, gamma_vec={self.gamma_vec})")
 
 
+def effective_hamiltonian_eigenvalues(delta_kappa, delta_f, coupling, phi):
+    matrix = np.array([
+        [((-1j * delta_f) / 2) - (delta_kappa / 2), -1j * coupling],
+        [-1j * coupling * np.exp(1j * phi), ((1j * delta_f) / 2) + (delta_kappa / 2)]
+    ])
+    return np.linalg.eigvals(matrix)
+
+
 def setup_symbolic_equations() -> ModelSymbolics:
     """
     Sets up the symbolic steady-state equations for the two-cavity system.
@@ -122,6 +130,20 @@ def compute_photon_numbers_transmission_hybrid(ss_response_func, w_f_vals):
     Returns an array of photon numbers.
     """
     photon_numbers_complex = ss_response_func(w_f_vals)
+    photon_numbers_real = np.abs(photon_numbers_complex) ** 2
+    return photon_numbers_real
+
+
+def compute_photon_numbers_NR(ss_response_func, w_y_vals, w_f_vals):
+    """
+    Computes the photon numbers for the non-PT symmetric case.
+    ss_response_func: steady-state response function from get_steady_state_response_non_PT
+    w_y_vals: array of YIG frequencies
+    w_f_vals: array of LO frequencies
+    Returns a 2D array of photon numbers.
+    """
+    W_Y, W_F = np.meshgrid(w_y_vals, w_f_vals, indexing='ij')
+    photon_numbers_complex = ss_response_func(W_Y, W_F)
     photon_numbers_real = np.abs(photon_numbers_complex) ** 2
     return photon_numbers_real
 
@@ -233,6 +255,37 @@ def get_steady_state_response_NR(symbols_dict: ModelSymbolics, params: ModelPara
 
     # Lambdify with w_y and w_f as variables
     return sp.lambdify((symbols_dict.w_y, symbols_dict.w_f), ss_eqn, 'numpy')
+
+
+def get_steady_state_response_PT(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
+    """
+    Returns a function that computes the steady-state response for the PT symmetric case.
+    """
+    # Unpack symbols
+    w0 = symbols_dict.w0
+    gamma = symbols_dict.gamma
+    F = symbols_dict.F
+    steady_state_eqns = symbols_dict.steady_state_eqns
+
+    # Substitutions for PT symmetric case
+    substitutions = {
+        w0[0]: params.cavity_freq,
+        w0[1]: params.w_y,
+        symbols_dict.J: params.J_val,
+        symbols_dict.g: params.g_val,
+        F[0]: params.drive_vector[0],
+        F[1]: params.drive_vector[1],
+        gamma[0]: params.gamma_vec[0],
+        gamma[1]: symbols_dict.gam_y,  # Keep gam_y symbolic
+        symbols_dict.phi_val: params.phi_val
+    }
+
+    ss_eqns_instantiated = steady_state_eqns.subs(substitutions)
+    ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
+              params.readout_vector[1] * ss_eqns_instantiated[1])
+
+    # Lambdify with gam_y and w_f as variables
+    return sp.lambdify((symbols_dict.gam_y, symbols_dict.w_f), ss_eqn, 'numpy')
 
 
 def calculate_theoretical_peak_splittings(symbols_dict, params, K_values):

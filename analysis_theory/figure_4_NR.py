@@ -38,8 +38,7 @@ import nr_simulation as nr_sim
 
 
 # make matplotlib use bolded arial for text
-plt.rcParams["font.family"] = "Arial"
-plt.rcParams["font.weight"] = "bold"
+plt.rcParams["font.family"] = "sans-serif"
 
 # Global simulation switches and parameters
 USE_PARALLEL = False

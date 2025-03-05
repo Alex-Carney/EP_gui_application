@@ -36,6 +36,14 @@ class ModelParams:
                 f"omega_y={self.w_y}, gamma_vec={self.gamma_vec})")
 
 
+def effective_hamiltonian_eigenvalues(delta_kappa, delta_f, coupling, phi):
+    matrix = np.array([
+        [((-1j * delta_f) / 2) - (delta_kappa / 2), -1j * coupling],
+        [-1j * coupling * np.exp(1j * phi), ((1j * delta_f) / 2) + (delta_kappa / 2)]
+    ])
+    return np.linalg.eigvals(matrix)
+
+
 def setup_symbolic_equations() -> ModelSymbolics:
     """
     Sets up the symbolic steady-state equations for the two-cavity system.
@@ -204,6 +212,65 @@ def get_cavity_dynamics_eigenvalues_numeric(symbols_dict: ModelSymbolics, params
     return eigenvalues
 
 
+def compute_photon_numbers_NR(ss_response_func, w_y_vals, w_f_vals):
+    """
+    Computes the photon numbers for the non-PT symmetric case.
+    ss_response_func: steady-state response function from get_steady_state_response_non_PT
+    w_y_vals: array of YIG frequencies
+    w_f_vals: array of LO frequencies
+    Returns a 2D array of photon numbers.
+    """
+    W_Y, W_F = np.meshgrid(w_y_vals, w_f_vals, indexing='ij')
+    photon_numbers_complex = ss_response_func(W_Y, W_F)
+    photon_numbers_real = np.abs(photon_numbers_complex) ** 2
+    return photon_numbers_real
+
+
+def get_steady_state_response_PT(symbols_dict: ModelSymbolics, params: ModelParams) -> sp.Expr:
+    """
+    Returns a function that computes the steady-state response for the PT symmetric case.
+    """
+    # Unpack symbols
+    w0 = symbols_dict.w0
+    gamma = symbols_dict.gamma
+    F = symbols_dict.F
+    steady_state_eqns = symbols_dict.steady_state_eqns
+
+    # Substitutions for PT symmetric case
+    substitutions = {
+        w0[0]: params.cavity_freq,
+        w0[1]: params.w_y,
+        symbols_dict.J: params.J_val,
+        symbols_dict.g: params.g_val,
+        F[0]: params.drive_vector[0],
+        F[1]: params.drive_vector[1],
+        gamma[0]: params.gamma_vec[0],
+        gamma[1]: symbols_dict.gam_y,  # Keep gam_y symbolic
+        symbols_dict.phi_val: params.phi_val
+    }
+
+    ss_eqns_instantiated = steady_state_eqns.subs(substitutions)
+    ss_eqn = (params.readout_vector[0] * ss_eqns_instantiated[0] +
+              params.readout_vector[1] * ss_eqns_instantiated[1])
+
+    # Lambdify with gam_y and w_f as variables
+    return sp.lambdify((symbols_dict.gam_y, symbols_dict.w_f), ss_eqn, 'numpy')
+
+
+def compute_photon_numbers_PT(ss_response_func, gam_y_vals, w_f_vals):
+    """
+    Computes the photon numbers for the PT symmetric case.
+    ss_response_func: steady-state response function from get_steady_state_response_PT
+    gam_y_vals: array of gamma_y values
+    w_f_vals: array of LO frequencies
+    Returns a 2D array of photon numbers.
+    """
+    GAM_Y, W_F = np.meshgrid(gam_y_vals, w_f_vals, indexing='ij')
+    photon_numbers_complex = ss_response_func(GAM_Y, W_F)
+    photon_numbers_real = np.abs(photon_numbers_complex) ** 2
+    return photon_numbers_real
+
+
 def calculate_theoretical_peak_splittings(symbols_dict, params, K_values):
     """
     Calculate the peak splitting for a range of \( K \) values.
@@ -341,7 +408,7 @@ def setup_fast_transmission_function(drive=(1, 0), readout=(0, 1)):
 def compute_photon_numbers_fast(fast_func,
                                 J_val, w_c_val, w_y_val,
                                 gamma_c_val, gamma_y_val,
-                                phi_val, w_f_array,):
+                                phi_val, w_f_array, ):
     """
     Convenience function that calls the lambdified fast_func and returns
     |transmitted|^2 (photon number).

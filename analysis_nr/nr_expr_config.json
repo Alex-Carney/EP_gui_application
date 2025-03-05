@@ -115,8 +115,10 @@
     "simulated_vertical_offset": 10.5,
     "amplitude_threshold_overfitting": 0.11,
     "readout_type": "normal",
-    "overlap_region_start": 0.01635,
-    "overlap_region_end": 0.0166
+    "overlap_region_end": 0.0166,
+    "overlap_region_start": 0.016355,
+    "overlap_region_min_freq": 5.9975e9,
+    "overlap_region_max_freq": 5.999e9
   },
   "saturday": {
     "name": "DefaultConfig",

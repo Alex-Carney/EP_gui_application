@@ -256,29 +256,41 @@ def main():
     cavity_kappa_values = cavity_df["kappa"].values
     yig_kappa_values = yig_df["kappa"].values
 
+    cavity_freq_values = cavity_df["omega"].values
+    avg_cavity_freq = np.mean(cavity_freq_values)
+
     # Calculate the average kappa for cavity and YIG
     avg_cavity_kappa = np.mean(cavity_kappa_values)
+    print('avg cavity freq is ', avg_cavity_freq)
+
+    xaxis_fig3 = np.array([.0160, .0165, .0170, .0175])
+    print("The Fig 3 x axis is, therefore we convert it to YIG freqs then divide it by 28e9")
+    print((avg_cavity_freq - xaxis_fig3) / 28)
+    print("Or we can just divide the detuning value, and call that Delta B")
+    print(xaxis_fig3 / 28)
+
     avg_yig_kappa = np.mean(yig_kappa_values)
 
-    avg_kappa = (avg_cavity_kappa + avg_yig_kappa)/2
+    avg_kappa = (avg_cavity_kappa + avg_yig_kappa) / 2
+    avg_cavity_f = cavity_freq_values.mean()
 
     nr_plot.plot_final_peak_plot(
-            theory_detuning_array=theory_detuning_array,
-            theory_lower_min_array=theory_lower_min_array,
-            theory_lower_max_array=theory_lower_max_array,
-            optimal_J=config.optimal_J,
-            kappa_val=avg_kappa,
-            detuning_array=detuning_array,
-            peak_array=peak_array,
-            experiment_id=experiment_id,
-            overlay_folder=overlay_folder,
-            theory_upper_min_array=theory_upper_min_array,
-            theory_upper_max_array=theory_upper_max_array,
-            peak_unc_array=peak_unc_array,
-            overlap_region_start=config.overlap_region_start,
-            overlap_region_end=config.overlap_region_end,
-            errorbar_color="red"
-        )
+        theory_detuning_array=theory_detuning_array,
+        theory_lower_min_array=theory_lower_min_array,
+        theory_lower_max_array=theory_lower_max_array,
+        optimal_J=config.optimal_J,
+        kappa_val=avg_kappa,
+        detuning_array=detuning_array,
+        peak_array=peak_array,
+        experiment_id=experiment_id,
+        overlay_folder=overlay_folder,
+        theory_upper_min_array=theory_upper_min_array,
+        theory_upper_max_array=theory_upper_max_array,
+        peak_unc_array=peak_unc_array,
+        overlap_region_start=config.overlap_region_start,
+        overlap_region_end=config.overlap_region_end,
+        errorbar_color="red",
+    )
 
     # Plot the final plot again, but use Linewidths for the errorbar values instead
     nr_plot.plot_final_peak_plot(
@@ -298,6 +310,29 @@ def main():
         overlap_region_start=config.overlap_region_start,
         overlap_region_end=config.overlap_region_end,
         filename_prepend="fwhm_"
+    )
+
+    nr_plot.plot_fig2(
+        theory_detuning_array=theory_detuning_array,
+        theory_lower_min_array=theory_lower_min_array,
+        theory_lower_max_array=theory_lower_max_array,
+        optimal_J=config.optimal_J,
+        kappa_val=avg_kappa,
+        detuning_array=detuning_array,
+        peak_array=peak_array,
+        experiment_id=experiment_id,
+        overlay_folder=overlay_folder,
+        theory_upper_min_array=theory_upper_min_array,
+        theory_upper_max_array=theory_upper_max_array,
+        peak_unc_array=peak_unc_array,
+        overlap_region_start=config.overlap_region_start,
+        overlap_region_end=config.overlap_region_end,
+        overlap_region_max_freq=config.overlap_region_max_freq,
+        overlap_region_min_freq=config.overlap_region_min_freq,
+        errorbar_color="red",
+        cavity_freq=avg_cavity_f,
+        yig_freqs=yig_freqs,
+        lo_freqs=nr_freqs
     )
 
     # ------------------ LINEWIDTH PLOTS ------------------
@@ -356,15 +391,16 @@ def main():
 
         # Plot the figure 3 plot
         nr_plot.plot_fig3(nr_power, nr_currents, nr_freqs, delta_df,
-                          experiment_id, nr_settings, avg_single_peak_frequency, fig3_folder,
-                          optimal_J=config.optimal_J, frequency_radius=.002,
-                          yig_power_grid=yig_power, yig_freqs=yig_freqs)
+                          experiment_id, nr_settings, avg_kappa, avg_single_peak_frequency, fig3_folder,
+                          optimal_J=config.optimal_J, frequency_radius=.002, yig_power_grid=yig_power,
+                          yig_freqs=yig_freqs)
 
         # Plot the figure 3 plot
         nr_plot.plot_research_figure(nr_power, nr_currents, nr_freqs, Delta_df=delta_df,
-                                     experiment_id=experiment_id, settings=nr_settings, avg_single_peak_frequency=avg_single_peak_frequency,
+                                     experiment_id=experiment_id, settings=nr_settings,
+                                     avg_single_peak_frequency=avg_single_peak_frequency,
                                      fig3_folder=fig3_folder, smoothing_window=50, optimal_J=config.optimal_J,
-                                     yig_power_grid=yig_power, yig_freqs=yig_freqs,
+                                     yig_power_grid=yig_power, yig_freqs=yig_freqs, kappa_val=avg_kappa,
                                      yig_trace_freq=5.990425)
 
     else:

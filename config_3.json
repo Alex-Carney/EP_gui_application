@@ -1,1 +1,1 @@
-{"phase_shifters": {"loop_phase": 315.0, "yig_phase": 45.0, "cavity_phase": 45.0}, "attenuators": {"cavity_att": 18.5, "yig_att": 0.0}}
+{"phase_shifters": {"loop_phase": 324.0, "yig_phase": 180.0, "cavity_phase": 90.0}, "attenuators": {"cavity_att": 16.8, "yig_att": 26.6}}

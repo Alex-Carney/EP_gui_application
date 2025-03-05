@@ -21,6 +21,8 @@ class ExperimentConfig:
     amplitude_threshold_overfitting: float
     overlap_region_start: float
     overlap_region_end: float
+    overlap_region_max_freq: float
+    overlap_region_min_freq: float
 
 
 def load_config(config_path: str, config_name: str = "default") -> ExperimentConfig:
@@ -51,4 +53,6 @@ def load_config(config_path: str, config_name: str = "default") -> ExperimentCon
         amplitude_threshold_overfitting=cfg["amplitude_threshold_overfitting"],
         overlap_region_start=cfg["overlap_region_start"] if "overlap_region_start" in cfg else None,
         overlap_region_end=cfg["overlap_region_end"] if "overlap_region_end" in cfg else None,
+        overlap_region_max_freq=cfg["overlap_region_max_freq"] if "overlap_region_max_freq" in cfg else None,
+        overlap_region_min_freq=cfg["overlap_region_min_freq"] if "overlap_region_min_freq" in cfg else None,
     )

@@ -9,6 +9,9 @@ import pt_simulation as pt_sim
 import pt_plotting as pt_plot
 import pt_voltage_data_loader as pt_data
 import pt_fitting as pt_fit
+import nr_amperage_data_loader as nr_data
+
+plt.rcParams["font.family"] = "sans-serif"
 
 # ------------------ COMMONLY CHANGED INPUTS ------------------
 CONFIG_NAME = "cab_nr2"
@@ -254,22 +257,22 @@ def main():
     # Get the kappa_C from the data
     cavity_kappa_values = cavity_df["kappa"].values
     yig_kappa_values = yig_df["kappa"].values
-    average_kappa = np.mean(cavity_kappa_values)
+    average_cavity_kappa = np.mean(cavity_kappa_values)
 
     # Get the average Delta from the data
     cavity_freq_values = cavity_df["omega"].values
     yig_freq_values = yig_df["omega"].values
 
-    cavity_freq = np.mean(cavity_freq_values)
+    average_cavity_freq = np.mean(cavity_freq_values)
     yig_freq = np.mean(yig_freq_values)
 
     delta_values = cavity_freq_values - yig_freq_values
 
-    print("\n Average kappa_C:", average_kappa)
+    print("\n Average kappa_C:", average_cavity_kappa)
     # print the average and stderr of delta_values
     print("Average delta:", np.mean(delta_values))
     print("Standard deviation of delta:", np.std(delta_values))
-    print("Cavity freq average: ", cavity_freq)
+    print("Cavity freq average: ", average_cavity_freq)
     print("Yig freq average: ", yig_freq)
 
     print("max yig kappa: ", np.max(yig_kappa_values))
@@ -291,7 +294,7 @@ def main():
         overlap_region_start=config.overlap_region_start,
         overlap_region_end=config.overlap_region_end,
         errorbar_color="red",
-        kappa_cavity=average_kappa,
+        kappa_cavity=average_cavity_kappa,
     )
 
     # Plot the final plot again, but use Linewidths for the errorbar values instead
@@ -313,7 +316,29 @@ def main():
         filename_prepend="fwhm_"
     )
 
-    # ------------------ LINEWIDTH PLOTS ------------------
+    pt_plot.plot_fig2(
+        theory_K_array=theory_K_array,
+        theory_lower_min_array=theory_lower_min_array,
+        theory_lower_max_array=theory_lower_max_array,
+        optimal_J=config.optimal_J,
+        kappa_cavity=average_cavity_kappa,
+        K_array=K_array,
+        peak_array=peak_array,
+        experiment_id=experiment_id,
+        overlay_folder=overlay_folder,
+        theory_upper_min_array=theory_upper_min_array,
+        theory_upper_max_array=theory_upper_max_array,
+        peak_unc_array=peak_unc_array,
+        overlap_region_start=config.overlap_region_start,
+        overlap_region_end=config.overlap_region_end,
+        errorbar_color="red",
+        cavity_freq=average_cavity_freq,
+        yig_kappas=yig_kappa_values,
+        lo_freqs=pt_freqs
+    )
+
+
+# ------------------ LINEWIDTH PLOTS ------------------
     pt_plot.plot_linewidth_vs_K(K_array, linewidth_array, config.optimal_J, linewidth_unc_array=None,
                                 experiment_id=experiment_id, output_folder=overlay_folder, errorbar_color="blue",
                                 overlap_region_start=config.overlap_region_start,
@@ -371,6 +396,29 @@ def main():
         pt_plot.plot_fig3_PT(pt_power, nr_voltages, pt_freqs, K_df,
                              experiment_id, nr_settings, avg_single_peak_frequency, fig3_folder,
                              optimal_J=config.optimal_J, frequency_radius=.0006)
+
+        current_min = -0.007
+        current_max = -0.00309
+        yig_db_path = "../databases/NR_R_FRI_OVN_HAILEY.db"
+        yig_experiment_id = "e4b2b4ed-0182-4abf-b3a5-d63f5e4b7ef3"
+        yig_yig_freq_min = 5.981e9
+        yig_yig_freq_max = 5.998e9
+        # First, need to get the YIG info from the other data loader ...
+        yig_loader = nr_data.NRAmperageDataLoader(yig_db_path, yig_experiment_id, "yig",
+                                                  yig_yig_freq_min, yig_yig_freq_max,
+                                                  current_min, current_max)
+        yig_power, yig_currents, yig_freqs, yig_settings = yig_loader.load_data()
+        # Plot the research figure
+        pt_plot.plot_research_figure(pt_power_grid=pt_power, voltages=nr_voltages, frequencies=pt_freqs,
+                                     K_df=K_df, experiment_id=experiment_id, settings=nr_settings,
+                                     avg_single_peak_frequency=avg_single_peak_frequency,
+                                     smoothing_window=50, optimal_J=config.optimal_J,
+                                     yig_power_grid=yig_power,
+                                     yig_freqs=yig_freqs,
+                                     yig_trace_freq=5.990,
+                                     fig3_folder=fig3_folder,
+                                     kappa_cavity=average_cavity_kappa)
+
 
     else:
         print("WARNING: No single peaks with detuning less than EP threshold were found.")
